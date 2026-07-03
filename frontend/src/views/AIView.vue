@@ -241,11 +241,16 @@
               <input v-model="configForm.model" class="form-input" placeholder="如：gpt-4-turbo、claude-3-5-sonnet" />
             </div>
             <div class="form-group">
-              <label>API 地址 <span class="label-hint">（可选，默认使用官方地址）</span></label>
-              <input v-model="configForm.api_url" class="form-input" placeholder="如：http://localhost:11434/v1" />
+              <label>API 地址 <span class="label-hint">{{ configForm.provider === 'custom' ? '（自定义必须填写）' : '（可选，默认使用官方地址）' }}</span></label>
+              <input
+                v-model="configForm.api_url"
+                class="form-input"
+                :placeholder="configForm.provider === 'custom' ? '如：https://apihub.agnes-ai.com/v1' : (configForm.provider === 'ollama' ? '如：http://localhost:11434/v1' : '留空使用官方地址')"
+                :disabled="configForm.provider !== 'custom' && configForm.provider !== 'ollama'"
+              />
             </div>
             <div class="form-group">
-              <label>API Key <span class="label-hint">（可选）</span></label>
+              <label>API Key <span class="label-hint">{{ configForm.provider === 'custom' ? '（自定义必须填写）' : '（可选）' }}</span></label>
               <input v-model="configForm.api_key" type="password" class="form-input" placeholder="sk-..." />
             </div>
             <div class="form-row">
@@ -277,6 +282,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { showToast } from '@/utils/toast'
 import { useAIStore } from '@/stores/ai'
 
 defineOptions({ name: 'AI' })
@@ -374,11 +380,25 @@ function onProviderChange() {
     custom: '',
   }
   configForm.value.model = modelMap[configForm.value.provider] || configForm.value.model
+  // 切换提供商时清空 API 地址，让用户自己填写
+  if (configForm.value.provider === 'custom') {
+    configForm.value.api_url = ''
+  }
 }
 
 async function saveConfig() {
   if (!configForm.value.name || !configForm.value.model) {
-    alert('请填写配置名称和模型标识')
+    showToast('请填写配置名称和模型标识', 'warning')
+    return
+  }
+  // 自定义提供商必须填写 API 地址
+  if (configForm.value.provider === 'custom' && !configForm.value.api_url) {
+    showToast('自定义提供商必须填写 API 地址', 'warning')
+    return
+  }
+  // 自定义提供商必须填写 API Key
+  if (configForm.value.provider === 'custom' && !configForm.value.api_key) {
+    showToast('自定义提供商必须填写 API Key', 'warning')
     return
   }
   configSaving.value = true
@@ -395,12 +415,14 @@ async function saveConfig() {
     }
     if (editingConfig.value) {
       await aiStore.updateModelConfig(editingConfig.value.id, payload)
+      showToast('模型配置已更新', 'success')
     } else {
       await aiStore.createModelConfig(payload)
+      showToast('模型配置已添加', 'success')
     }
     closeModelDialog()
   } catch (e: any) {
-    alert(e.message || '保存失败')
+    showToast(e.message || '保存失败', 'error')
   } finally {
     configSaving.value = false
   }
@@ -413,21 +435,23 @@ async function setDefault(id: string) {
 async function toggleActive(config: any) {
   try {
     await aiStore.updateModelConfig(config.id, { is_active: !config.is_active })
+    showToast(config.is_active ? '已禁用模型' : '已启用模型', 'success')
   } catch (e: any) {
-    alert(e.message || '操作失败')
+    showToast(e.message || '操作失败', 'error')
   }
 }
 
 async function deleteModel(config: any) {
   if (config.is_default) {
-    alert('无法删除默认模型，请先设置其他模型为默认')
+    showToast('无法删除默认模型，请先设置其他模型为默认', 'warning')
     return
   }
   if (!confirm(`确认删除模型配置「${config.name}」？`)) return
   try {
     await aiStore.deleteModelConfig(config.id)
+    showToast('模型配置已删除', 'success')
   } catch (e: any) {
-    alert(e.message || '删除失败')
+    showToast(e.message || '删除失败', 'error')
   }
 }
 
