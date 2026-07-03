@@ -1,0 +1,77 @@
+{
+  "name": "kylin-secops-agent",
+  "version": "2.1.0",
+  "description": "麒麟OS安全智能运维Agent - 桌面版",
+  "main": "main.js",
+  "author": "Kylin SecOps Team",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder build --win",
+    "build:dir": "electron-builder build --win --dir",
+    "release": "electron-builder build --win --publish always",
+    "release:gh": "node scripts/publish-release.js"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^20.3.12",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "electronDist": "../麒麟OS安全智能运维Agent_桌面版交付/electron",
+    "appId": "com.kylin.secops.agent",
+    "productName": "麒麟OS安全运维",
+    "copyright": "Copyright © 2026 Kylin SecOps Team",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "frontend/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../麒麟OS安全智能运维Agent_桌面版交付/backend.exe",
+        "to": "backend.exe"
+      },
+      {
+        "from": "../麒麟OS安全智能运维Agent_桌面版交付/config.json",
+        "to": "config.json"
+      },
+      {
+        "from": "../麒麟OS安全智能运维Agent_桌面版交付/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "麒麟OS安全运维",
+      "artifactName": "麒麟OS安全运维Agent-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "HONOR",
+      "repo": "kylin-secops-desktop",
+      "releaseType": "release"
+    }
+  }
+}

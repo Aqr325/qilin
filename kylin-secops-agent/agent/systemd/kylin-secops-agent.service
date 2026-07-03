@@ -1,0 +1,55 @@
+[Unit]
+Description=Kylin Security Operations Agent v3.2.1
+Documentation=https://secops.company.com/docs
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/kylin-secops-agent/kylin-secops-agent
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+
+# Working directories (systemd 247+ uses StateDirectory, else manual paths)
+StateDirectory=kylin-secops-agent
+RuntimeDirectory=kylin-secops-agent
+LogsDirectory=kylin-secops-agent
+
+# Resource limits — keep agent lightweight
+CPUQuota=20%
+MemoryMax=256M
+MemoryHigh=200M
+
+# Restart policy — survive crashes and reboots
+Restart=always
+RestartSec=10s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/kylin-secops-agent /var/log/kylin-secops-agent /etc/kylin-secops-agent
+ReadOnlyPaths=/opt/kylin-secops-agent
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_NET_RAW CAP_NET_ADMIN CAP_SYS_PTRACE
+AmbientCapabilities=CAP_DAC_OVERRIDE
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+# Process limits
+LimitNOFILE=65536
+LimitNPROC=512
+
+# Nice / IO scheduling — low priority
+Nice=10
+IOSchedulingClass=2
+IOSchedulingPriority=7
+
+# Standard output/error
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

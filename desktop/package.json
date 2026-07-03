@@ -1,0 +1,67 @@
+{
+  "name": "kylin-secops-desktop",
+  "version": "1.0.0",
+  "description": "麒麟OS 安全智能运维Agent - 桌面版",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "dist": "electron-builder",
+    "pack": "electron-builder --dir",
+    "build:win": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.kylin.secops.desktop",
+    "productName": "麒麟OS安全运维",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js"
+    ],
+    "extraResources": [
+      {
+        "from": "frontend",
+        "to": "frontend"
+      },
+      {
+        "from": "resources",
+        "to": ".",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "麒麟OS安全运维",
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "installerHeaderIcon": "resources/icon.ico",
+      "license": "LICENSE",
+      "perMachine": true,
+      "runAfterFinish": true
+    },
+    "artifactName": "${name}-${version}-setup.${ext}"
+  },
+  "author": "Kylin SecOps Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "keywords": ["kylin", "security", "secops", "desktop"]
+}

@@ -1,0 +1,60 @@
+# 构建产物
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Node.js
+node_modules/
+package-lock.json
+*.tsbuildinfo/
+
+# Electron 打包产物
+electron-app/node_modules/
+electron-app/release/
+electron-app/electron/
+desktop/node_modules/
+desktop/release/
+desktop/electron-dist/
+
+# 后端编译产物和运行时
+*.exe
+backend.pid
+uvicorn.err
+*.log
+logs/
+temp/
+
+# 桌面程序交付目录（体积大）
+麒麟OS安全运维_桌面程序/
+麒麟OS安全智能运维Agent_桌面版交付/
+麒麟OS-安全智能运维Agent-设计原型包/
+
+# 开发环境
+*.db
+*.sqlite3
+.env
+.venv/
+venv/
+desktop-build-env/
+_internal/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 临时文件
+nul
+*.pid
+
+# WorkBuddy
+.workbuddy/
+
+# 旧版 electron-app 前端构建（冗余）
+electron-app/frontend/

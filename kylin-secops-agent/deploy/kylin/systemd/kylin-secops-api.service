@@ -1,0 +1,88 @@
+# Kylin Security Operations API — systemd service
+# 麒麟安全智能运维平台 后端 API 服务
+# 适用于 麒麟V10 (KylinOS V10) / 银河麒麟高级服务器操作系统 V10
+#
+# 安装: cp this file to /usr/lib/systemd/system/kylin-secops-api.service
+#        systemctl daemon-reload
+#        systemctl enable --now kylin-secops-api
+
+[Unit]
+Description=Kylin Security Operations API Service
+Documentation=https://secops.company.com/docs
+After=network.target network-online.target postgresql.service redis.service
+Wants=network-online.target postgresql.service redis.service
+
+[Service]
+Type=simple
+User=kylin-secops
+Group=kylin-secops
+
+# ── Python Virtual Environment ──
+Environment=PATH=/opt/kylin-secops-api/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=PYTHONPATH=/opt/kylin-secops-api
+Environment=DATABASE_URL=postgresql+asyncpg://secops:${DB_PASSWORD}@localhost:5432/kylin_secops
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+Environment=REDIS_DB=0
+Environment=JWT_SECRET_KEY=/etc/kylin-secops-api/jwt-secret.key
+Environment=JWT_ALGORITHM=RS256
+Environment=JWT_PUBLIC_KEY=/etc/kylin-secops-api/jwt-public.pem
+Environment=DEBUG=False
+Environment=LOG_LEVEL=INFO
+Environment=UVICORN_WORKERS=4
+Environment=CORS_ORIGINS=https://secops.company.com
+
+# ── Startup ──
+ExecStart=/opt/kylin-secops-api/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers ${UVICORN_WORKERS} \
+    --log-level info \
+    --no-access-log
+
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+
+# ── Working directories ──
+WorkingDirectory=/opt/kylin-secops-api
+StateDirectory=kylin-secops-api
+RuntimeDirectory=kylin-secops-api
+LogsDirectory=kylin-secops-api
+
+# ── Resource limits ──
+CPUQuota=80%
+MemoryMax=1024M
+MemoryHigh=768M
+TasksMax=512
+
+# ── Restart policy ──
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+# ── Security hardening ──
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+ReadWritePaths=/var/lib/kylin-secops-api /var/log/kylin-secops-api /etc/kylin-secops-api
+ReadOnlyPaths=/opt/kylin-secops-api
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Process limits
+LimitNOFILE=65536
+LimitNPROC=1024
+
+# IO scheduling
+Nice=0
+IOSchedulingClass=2
+IOSchedulingPriority=4
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

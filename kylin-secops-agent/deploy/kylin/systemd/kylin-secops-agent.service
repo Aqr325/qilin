@@ -1,0 +1,73 @@
+# Kylin Security Operations Agent — systemd service (production)
+# 麒麟安全智能运维Agent 客户端服务
+# 适用于 麒麟V10 (KylinOS V10) Server / Desktop
+#
+# 安装: cp this file to /usr/lib/systemd/system/kylin-secops-agent.service
+#        systemctl daemon-reload
+#        systemctl enable --now kylin-secops-agent
+
+[Unit]
+Description=Kylin Security Operations Agent
+Documentation=https://secops.company.com/docs
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root   # Agent 需要读取 /proc 和系统日志，需要 root 权限
+
+# ── Python Virtual Environment ──
+Environment=PATH=/opt/kylin-secops-agent/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=PYTHONPATH=/opt/kylin-secops-agent
+Environment=KYLIN_SECOPS_AGENT_CONFIG=/etc/kylin-secops-agent/config.yaml
+
+ExecStart=/opt/kylin-secops-agent/venv/bin/python3 /opt/kylin-secops-agent/src/main.py
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+
+# ── Working directories ──
+WorkingDirectory=/opt/kylin-secops-agent
+StateDirectory=kylin-secops-agent
+RuntimeDirectory=kylin-secops-agent
+LogsDirectory=kylin-secops-agent
+
+# ── Resource limits ──
+CPUQuota=20%
+MemoryMax=256M
+MemoryHigh=200M
+TasksMax=256
+
+# ── Restart policy ──
+Restart=always
+RestartSec=10s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# ── Security hardening ──
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+ReadWritePaths=/var/lib/kylin-secops-agent /var/log/kylin-secops-agent /etc/kylin-secops-agent
+ReadOnlyPaths=/opt/kylin-secops-agent
+
+# 麒麟系统特有：允许读取安全审计日志
+# Kylin audit subsystem access
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_NET_RAW CAP_NET_ADMIN CAP_SYS_PTRACE CAP_AUDIT_READ CAP_SYSLOG
+AmbientCapabilities=CAP_DAC_OVERRIDE CAP_AUDIT_READ CAP_SYSLOG
+
+# ── Process limits ──
+LimitNOFILE=65536
+LimitNPROC=512
+
+# ── IO scheduling (低优先级，不影响业务) ──
+Nice=10
+IOSchedulingClass=2
+IOSchedulingPriority=7
+
+# ── Logging ──
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

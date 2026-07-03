@@ -1,0 +1,277 @@
+:root {
+  --color-bg-canvas: #0A0E14;
+  --color-bg-surface: #14181F;
+  --color-bg-elevated: #1C2128;
+  --color-bg-hover: #242A33;
+  --color-bg-active: #2A3340;
+
+  --color-text-primary: #E8ECF0;
+  --color-text-secondary: #9BA3B0;
+  --color-text-tertiary: #5C6673;
+  --color-text-disabled: #38404B;
+  --color-text-on-accent: #FFFFFF;
+
+  --color-border-default: #2C3540;
+  --color-border-subtle: #202831;
+
+  --color-accent-500: #00BCD4;
+  --color-accent-600: #00ACC1;
+  --color-accent-700: #0097A7;
+  --color-accent-purple: #7C4DFF;
+
+  --color-critical: #FF3B5C;
+  --color-high: #FF6D00;
+  --color-medium: #FFC107;
+  --color-low: #00C853;
+  --color-info: #448AFF;
+
+  --color-status-online: #00E676;
+  --color-status-offline: #78909C;
+  --color-status-error: #FF1744;
+  --color-status-pending: #FFD600;
+
+  --chart-color-1: #00BCD4;
+  --chart-color-2: #7C4DFF;
+  --chart-color-3: #00E676;
+  --chart-color-4: #FF6D00;
+  --chart-color-5: #E040FB;
+  --chart-color-6: #448AFF;
+  --chart-color-7: #FFD600;
+  --chart-color-8: #FF3B5C;
+
+  --font-family-base: 'Fira Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'Fira Code', 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+  --font-family-zh: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  --text-display: 36px;
+  --text-h1: 28px;
+  --text-h2: 22px;
+  --text-h3: 18px;
+  --text-h4: 16px;
+  --text-body: 14px;
+  --text-body-sm: 13px;
+  --text-mono: 14px;
+  --text-mono-sm: 12px;
+  --text-caption: 12px;
+  --text-label: 11px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.30);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.40);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.50);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.60);
+  --glow-accent: 0 0 24px rgba(0, 188, 212, 0.15);
+  --glow-critical: 0 0 24px rgba(255, 59, 92, 0.15);
+  --glow-success: 0 0 24px rgba(0, 200, 83, 0.15);
+
+  --shadow-card-rest: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.50), 0 0 0 1px rgba(0, 188, 212, 0.08);
+  --glow-accent-strong: 0 0 30px rgba(0, 188, 212, 0.30);
+  --glow-card-hover: 0 4px 24px rgba(0, 188, 212, 0.08);
+  --shadow-btn-press: 0 1px 4px rgba(0, 0, 0, 0.40);
+
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+
+  --layout-content-max: 1440px;
+  --layout-sidebar-width: 240px;
+  --layout-topbar-height: 56px;
+}
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-family-base), var(--font-family-zh);
+  font-size: var(--text-body);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(0, 188, 212, 0.35);
+  color: #fff;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+#app {
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-accent-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Common utility classes */
+.card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card:hover {
+  border-color: rgba(0, 188, 212, 0.12);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: var(--text-caption);
+  font-weight: var(--font-weight-medium);
+  gap: 4px;
+}
+
+.badge-critical { background: rgba(255, 59, 92, 0.15); color: var(--color-critical); }
+.badge-high { background: rgba(255, 109, 0, 0.15); color: var(--color-high); }
+.badge-medium { background: rgba(255, 193, 7, 0.15); color: var(--color-medium); }
+.badge-low { background: rgba(0, 200, 83, 0.15); color: var(--color-low); }
+.badge-info { background: rgba(68, 138, 255, 0.15); color: var(--color-info); }
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-body-sm);
+}
+
+.status-tag .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status-pending .dot { background: var(--color-status-pending); }
+.status-progress .dot { background: var(--color-info); }
+.status-resolved .dot { background: var(--color-low); }
+
+.action-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.action-btn:hover {
+  background: rgba(0, 188, 212, 0.08);
+  border-color: var(--color-accent-500);
+  color: var(--color-accent-500);
+  box-shadow: 0 0 20px rgba(0, 188, 212, 0.12);
+}
+
+.action-btn:active {
+  background: rgba(0, 188, 212, 0.15);
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--color-accent-500);
+  color: #fff;
+  font-size: var(--text-body-sm);
+  font-weight: var(--font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: var(--color-accent-600);
+  box-shadow: var(--glow-accent);
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes countIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseRing {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  50% { transform: scale(1.4); opacity: 0.2; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}

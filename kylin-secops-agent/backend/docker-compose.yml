@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kylin-secops-postgres
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: kylin_secops
+      POSTGRES_USER: kylin_secops
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-kylin_secops_2026}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kylin_secops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: kylin-secops-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-kylin_redis_2026}
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kylin-secops-api
+    restart: unless-stopped
+    volumes:
+      - ./app:/app/app
+      - uploads:/app/uploads
+    environment:
+      DB_HOST: postgres
+      DB_USER: kylin_secops
+      DB_PASSWORD: ${DB_PASSWORD:-kylin_secops_2026}
+      DB_NAME: kylin_secops
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-kylin_redis_2026}
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kylin-secops-celery
+    restart: unless-stopped
+    command: celery -A app.celery_app worker -l info -Q default,heartbeat,alerts,policies -c 4
+    volumes:
+      - ./app:/app/app
+    environment:
+      DB_HOST: postgres
+      DB_USER: kylin_secops
+      DB_PASSWORD: ${DB_PASSWORD:-kylin_secops_2026}
+      DB_NAME: kylin_secops
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-kylin_redis_2026}
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
+      LOG_LEVEL: INFO
+    depends_on:
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kylin-secops-celery-beat
+    restart: unless-stopped
+    command: celery -A app.celery_app beat -l info
+    volumes:
+      - ./app:/app/app
+    environment:
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-kylin_redis_2026}
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
+    depends_on:
+      - redis
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
