@@ -31,11 +31,15 @@ jwt = be.get('jwt', {})
 redis_cfg = be.get('redis', {})
 desktop = config.get('desktop', {})
 
-DB_URL = db.get('url', 'sqlite+aiosqlite:///./data/kylin_secops.db')
+DB_URL = db.get('url', 'kylin_secops.db')
 BACKEND_HOST = be.get('host', '127.0.0.1')
 BACKEND_PORT = be.get('port', 8000)
 JWT_ALGO = jwt.get('algorithm', 'HS256')
-JWT_KEY = jwt.get('secret_key', 'kylin-secops-desktop-key-2026')
+JWT_KEY = jwt.get('secret_key', '')
+if not JWT_KEY:
+    import secrets
+    JWT_KEY = secrets.token_hex(32)
+    print("[WARN] JWT secret_key not configured, using random temporary key")
 REDIS_ENABLED = redis_cfg.get('enabled', False)
 REDIS_HOST = redis_cfg.get('host', '') if REDIS_ENABLED else ''
 DEBUG = be.get('debug', False)
@@ -45,14 +49,18 @@ data_dir = os.path.join(EXE_DIR, desktop.get('data_directory', './data'))
 os.makedirs(data_dir, exist_ok=True)
 
 # Normalize DB_URL to a valid SQLAlchemy URL
-if DB_URL.startswith(('sqlite', 'postgresql', 'mysql', 'oracle', 'mssql')):
+if DB_URL == 'InMemoryDB' or DB_URL == '':
+    # Desktop default: kylin_secops.db in EXE_DIR
+    abs_db = os.path.join(EXE_DIR, 'kylin_secops.db')
+    DB_URL = f"sqlite+aiosqlite:///{abs_db}"
+elif DB_URL.startswith(('sqlite', 'postgresql', 'mysql', 'oracle', 'mssql')):
     # Already a proper SQLAlchemy URL
     if DB_URL.startswith('sqlite') and './' in DB_URL:
         db_filename = DB_URL.split('/')[-1]
         abs_db = os.path.join(EXE_DIR, db_filename)
         DB_URL = f"sqlite+aiosqlite:///{abs_db}"
 else:
-    # Plain filename → treat as relative SQLite path
+    # Plain filename → treat as relative SQLite path under EXE_DIR
     abs_db = os.path.join(EXE_DIR, DB_URL)
     DB_URL = f"sqlite+aiosqlite:///{abs_db}"
 
@@ -63,6 +71,7 @@ os.environ.setdefault("JWT_ALGORITHM", JWT_ALGO)
 os.environ.setdefault("JWT_SECRET_KEY", JWT_KEY)
 os.environ.setdefault("REDIS_HOST", REDIS_HOST)
 os.environ.setdefault("DEBUG", str(DEBUG))
+os.environ.setdefault("EXE_DIR", EXE_DIR)
 os.environ["DATABASE_URL"] = DB_URL
 
 # ══════════════════════════════════════════════════════════════
@@ -114,19 +123,6 @@ class _SQLiteURL:
 
 
 cfg.Settings.DATABASE_URL = _SQLiteURL()
-
-# Register SQLite gen_random_uuid()
-from sqlalchemy import event as sa_event
-from app.core.database import engine
-
-
-@sa_event.listens_for(engine.sync_engine, "connect")
-def _sqlite_setup(dbapi_conn, _record):
-    import sqlite3
-    if not isinstance(dbapi_conn, sqlite3.Connection):
-        return
-    import uuid
-    dbapi_conn.create_function("gen_random_uuid", 0, lambda: str(uuid.uuid4()))
 
 
 # ══════════════════════════════════════════════════════════════

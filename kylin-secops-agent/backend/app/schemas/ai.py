@@ -118,6 +118,9 @@ class DashboardOverview(BaseModel):
     total_alerts: int = 0
     active_alerts: int = 0
     critical_alerts: int = 0
+    high_alerts: int = 0
+    medium_alerts: int = 0
+    low_alerts: int = 0
     resolved_alerts: int = 0
     total_agents: int = 0
     online_agents: int = 0
@@ -152,3 +155,51 @@ class TopAlertType(BaseModel):
     count: int = 0
     severity: Optional[str] = None
     trend: Optional[str] = None  # "up", "down", "stable"
+
+
+# ── Model Config ──
+
+class AiModelConfigCreate(BaseModel):
+    """创建模型配置请求."""
+
+    name: str = Field(..., min_length=1, max_length=128, description="配置名称")
+    provider: str = Field(..., description="提供商: openai/anthropic/ollama/custom")
+    model: str = Field(..., min_length=1, max_length=128, description="模型标识")
+    api_url: Optional[str] = Field(None, max_length=512, description="API地址")
+    api_key: Optional[str] = Field(None, description="API Key")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="温度参数")
+    max_tokens: int = Field(default=4096, ge=1, le=128000, description="最大Token数")
+    system_prompt: Optional[str] = Field(None, description="系统提示词")
+
+
+class AiModelConfigUpdate(BaseModel):
+    """更新模型配置请求."""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=128)
+    provider: Optional[str] = Field(None)
+    model: Optional[str] = Field(None, min_length=1, max_length=128)
+    api_url: Optional[str] = Field(None, max_length=512)
+    api_key: Optional[str] = Field(None)
+    temperature: Optional[float] = Field(None, ge=0.0, le=2.0)
+    max_tokens: Optional[int] = Field(None, ge=1, le=128000)
+    system_prompt: Optional[str] = Field(None)
+    is_active: Optional[bool] = Field(None)
+    is_default: Optional[bool] = Field(None)
+
+
+class AiModelConfig(BaseModel):
+    """模型配置响应."""
+
+    id: str
+    name: str
+    provider: str
+    model: str
+    api_url: Optional[str] = None
+    temperature: float = 0.7
+    max_tokens: int = 4096
+    system_prompt: Optional[str] = None
+    is_active: bool = True
+    is_default: bool = False
+    has_api_key: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None

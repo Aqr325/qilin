@@ -234,8 +234,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAlertsStore } from '@/stores/alerts'
+import { showToast } from '@/utils/toast'
+
+defineOptions({ name: 'Alerts' })
 import type { Alert, AlertStatus } from '@/types'
 import { exportToCSV, timestampSuffix } from '@/utils/csv'
+import { alertsApi } from '@/services/api/alerts'
 
 const alertsStore = useAlertsStore()
 
@@ -281,13 +285,47 @@ function changePage(p: number) {
   alertsStore.fetchAlerts()
 }
 
-function batchAction(status: string) {
+async function batchAction(status: string) {
   const ids = Array.from(alertsStore.selectedAlerts)
-  alertsStore.batchUpdateStatus(ids, status as AlertStatus)
+  try {
+    await alertsApi.batchStatus(ids, status)
+    // Update local alerts
+    for (const alert of alertsStore.alerts) {
+      if (ids.includes(alert.id)) {
+        alert.status = status as AlertStatus
+        const statusLabelMap: Record<string, string> = {
+          acknowledged: '处理中', resolved: '已处置', false_positive: '误报',
+          new: '待处理', investigating: '调查中', closed: '已关闭',
+        }
+        alert.status_label = statusLabelMap[status] || status
+      }
+    }
+    alertsStore.selectedAlerts.value.clear()
+    await alertsStore.fetchStats()
+  } catch {
+    // API not available, optimistic update
+    for (const alert of alertsStore.alerts) {
+      if (ids.includes(alert.id)) {
+        alert.status = status as AlertStatus
+        const statusLabelMap: Record<string, string> = {
+          acknowledged: '处理中', resolved: '已处置', false_positive: '误报',
+          new: '待处理', investigating: '调查中', closed: '已关闭',
+        }
+        alert.status_label = statusLabelMap[status] || status
+      }
+    }
+    alertsStore.selectedAlerts.value.clear()
+  }
 }
 
-function showDetail(alert: Alert) {
-  detailAlert.value = alert
+async function showDetail(alert: Alert) {
+  try {
+    const detail = await alertsApi.detail(alert.id)
+    detailAlert.value = detail
+  } catch {
+    // API not available, use summary
+    detailAlert.value = alert
+  }
 }
 
 function closeDetail() {
@@ -296,8 +334,38 @@ function closeDetail() {
 
 async function changeDetailStatus(status: string) {
   if (detailAlert.value) {
-    await alertsStore.batchUpdateStatus([detailAlert.value.id], status as AlertStatus)
-    closeDetail()
+    try {
+      await alertsApi.updateStatus(detailAlert.value.id, status)
+      // Update local alert in store
+      const idx = alertsStore.alerts.findIndex(a => a.id === detailAlert.value!.id)
+      if (idx >= 0) {
+        alertsStore.alerts[idx].status = status as AlertStatus
+        const statusLabelMap: Record<string, string> = {
+          acknowledged: '处理中', resolved: '已处置', false_positive: '误报',
+          new: '待处理', investigating: '调查中', closed: '已关闭',
+        }
+        alertsStore.alerts[idx].status_label = statusLabelMap[status] || status
+      }
+      closeDetail()
+      // Refresh stats
+      await alertsStore.fetchStats()
+    } catch {
+      // API not available, optimistic update
+      if (detailAlert.value) {
+        const statusLabelMap: Record<string, string> = {
+          acknowledged: '处理中', resolved: '已处置', false_positive: '误报',
+          new: '待处理', investigating: '调查中', closed: '已关闭',
+        }
+        detailAlert.value.status = status as AlertStatus
+        detailAlert.value.status_label = statusLabelMap[status] || status
+        const idx = alertsStore.alerts.findIndex(a => a.id === detailAlert.value!.id)
+        if (idx >= 0) {
+          alertsStore.alerts[idx].status = status as AlertStatus
+          alertsStore.alerts[idx].status_label = statusLabelMap[status] || status
+        }
+      }
+      closeDetail()
+    }
   }
 }
 

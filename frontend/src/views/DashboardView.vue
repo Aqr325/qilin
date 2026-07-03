@@ -139,10 +139,7 @@
           <button class="page-btn" :disabled="alertsStore.page <= 1" @click="prevPage">
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3L4 7L8 11"/></svg>
           </button>
-          <button class="page-btn active">1</button>
-          <button class="page-btn">2</button>
-          <button class="page-btn">3</button>
-          <button class="page-btn">...</button>
+          <button class="page-btn active">{{ alertsStore.page }}</button>
           <button class="page-btn" @click="nextPage">
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 3L10 7L6 11"/></svg>
           </button>
@@ -153,10 +150,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAlertsStore } from '@/stores/alerts'
+
+defineOptions({ name: 'Dashboard' })
+import { showToast } from '@/utils/toast'
 import type { Alert } from '@/types'
 
 const router = useRouter()
@@ -166,6 +166,9 @@ const alertsStore = useAlertsStore()
 const trendChartRef = ref<HTMLCanvasElement | null>(null)
 const doughnutChartRef = ref<HTMLCanvasElement | null>(null)
 const refreshSeconds = ref(0)
+
+let trendChart: any = null
+let doughnutChart: any = null
 
 const overview = computed(() => store.overview)
 const agentHealthTotal = computed(() => store.agentHealth.online + store.agentHealth.offline + store.agentHealth.error + store.agentHealth.pending)
@@ -243,7 +246,7 @@ function initCharts() {
   if (trendChartRef.value) {
     const ctx = trendChartRef.value.getContext('2d')
     if (ctx) {
-      new window.Chart(ctx, {
+      trendChart = new window.Chart(ctx, {
         type: 'line',
         data: {
           labels: store.alertTrend.map(t => t.date),
@@ -322,12 +325,13 @@ function initCharts() {
   if (doughnutChartRef.value) {
     const ctx = doughnutChartRef.value.getContext('2d')
     if (ctx) {
-      new window.Chart(ctx, {
+      const data = [store.criticalCount, store.highCount, store.mediumCount, store.lowCount]
+      doughnutChart = new window.Chart(ctx, {
         type: 'doughnut',
         data: {
-          labels: ['严重 23%', '高危 18%', '中危 35%', '低危 24%'],
+          labels: ['严重', '高危', '中危', '低危'],
           datasets: [{
-            data: [23, 18, 35, 24],
+            data,
             backgroundColor: ['#FF3B5C', '#FF6D00', '#FFC107', '#00C853'],
             borderColor: '#14181F',
             borderWidth: 3,
@@ -348,6 +352,16 @@ function initCharts() {
                 padding: 14,
                 usePointStyle: true,
                 pointStyle: 'circle',
+                generateLabels: function(chart) {
+                  const data = chart.data
+                  return data.labels.map((label, i) => ({
+                    text: `${label} ${data.datasets[0].data[i]}`,
+                    fillStyle: data.datasets[0].backgroundColor[i],
+                    strokeStyle: data.datasets[0].backgroundColor[i],
+                    hidden: false,
+                    index: i,
+                  }))
+                },
               },
             },
             tooltip: {
@@ -365,6 +379,24 @@ function initCharts() {
     }
   }
 }
+
+// Watch for data changes and update charts
+watch(() => store.alertTrend, (newTrend) => {
+  if (trendChart && newTrend.length > 0) {
+    trendChart.data.labels = newTrend.map(t => t.date)
+    trendChart.data.datasets[0].data = newTrend.map(t => t.critical)
+    trendChart.data.datasets[1].data = newTrend.map(t => t.high)
+    trendChart.data.datasets[2].data = newTrend.map(t => t.medium)
+    trendChart.update('active')
+  }
+}, { deep: true })
+
+watch(() => [store.criticalCount, store.highCount, store.mediumCount, store.lowCount], () => {
+  if (doughnutChart) {
+    doughnutChart.data.datasets[0].data = [store.criticalCount, store.highCount, store.mediumCount, store.lowCount]
+    doughnutChart.update('active')
+  }
+}, { deep: true })
 
 onMounted(async () => {
   updateClock()
@@ -384,6 +416,8 @@ onMounted(async () => {
 onUnmounted(() => {
   clearInterval(clockTimer)
   clearInterval(refreshTimer)
+  if (trendChart) trendChart.destroy()
+  if (doughnutChart) doughnutChart.destroy()
 })
 </script>
 

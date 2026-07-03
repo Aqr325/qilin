@@ -307,8 +307,50 @@ async def preview_targets(
     db: AsyncSession,
     target_expression: str,
 ) -> PolicyPreviewTargets:
-    """Preview policy target agents."""
-    return PolicyPreviewTargets(agent_count=0, sample_list=[])
+    """Preview policy target agents based on target expression."""
+    from sqlalchemy import select, func
+    from app.models.agent import Agent
+
+    if target_expression == "all":
+        stmt = select(Agent).where(Agent.is_deleted == 0)
+        results = await db.execute(stmt)
+        agents = results.scalars().all()
+    elif target_expression.startswith("tag:"):
+        tag = target_expression[4:]
+        stmt = select(Agent).where(
+            Agent.is_deleted == 0,
+            Agent.tags.contains([tag]),
+        )
+        results = await db.execute(stmt)
+        agents = results.scalars().all()
+    elif target_expression.startswith("ip:"):
+        ip_prefix = target_expression[3:]
+        stmt = select(Agent).where(
+            Agent.is_deleted == 0,
+            Agent.ip_address.startswith(ip_prefix),
+        )
+        results = await db.execute(stmt)
+        agents = results.scalars().all()
+    else:
+        agent_ids = [a.strip() for a in target_expression.split(",") if a.strip()]
+        if not agent_ids:
+            return PolicyPreviewTargets(agent_count=0, sample_list=[])
+        stmt = select(Agent).where(
+            Agent.is_deleted == 0,
+            Agent.agent_id.in_(agent_ids),
+        )
+        results = await db.execute(stmt)
+        agents = results.scalars().all()
+
+    sample_list = []
+    for agent in agents[:10]:
+        sample_list.append({
+            "agent_id": agent.agent_id,
+            "hostname": agent.hostname,
+            "ip_address": str(agent.ip_address) if agent.ip_address else "N/A",
+        })
+
+    return PolicyPreviewTargets(agent_count=len(agents), sample_list=sample_list)
 
 
 async def _policy_to_detail(policy: Policy) -> PolicyDetail:

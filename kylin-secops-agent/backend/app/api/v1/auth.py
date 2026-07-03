@@ -9,10 +9,12 @@ from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
+    MFAToggleRequest,
     PermissionItem,
     RefreshTokenRequest,
     TokenPair,
     UserProfile,
+    UserProfileUpdateRequest,
 )
 from app.schemas.common import ApiResponse
 from app.services import auth_service
@@ -84,3 +86,43 @@ async def get_my_permissions(
     """获取当前用户权限列表."""
     result = await auth_service.get_user_permissions(db, current_user["id"])
     return ApiResponse(data=result)
+
+
+@router.post("/change-password", response_model=ApiResponse)
+async def change_password_compat(
+    req: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """修改密码（兼容前端端点）."""
+    await auth_service.change_password(
+        db, current_user["id"], req.old_password, req.new_password
+    )
+    return ApiResponse(message="密码修改成功")
+
+
+@router.put("/me/profile", response_model=ApiResponse[UserProfile])
+async def update_profile(
+    req: UserProfileUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新用户资料."""
+    updated = await auth_service.update_user_profile(
+        db, current_user["id"],
+        display_name=req.display_name,
+        email=req.email,
+        phone=req.phone,
+    )
+    return ApiResponse(data=UserProfile(**updated))
+
+
+@router.put("/mfa", response_model=ApiResponse[UserProfile])
+async def toggle_mfa(
+    req: MFAToggleRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """切换MFA开关."""
+    updated = await auth_service.toggle_mfa(db, current_user["id"], req.enabled)
+    return ApiResponse(data=UserProfile(**updated))

@@ -27,7 +27,7 @@ class Alert(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "alerts"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
     alert_seq: Mapped[int] = mapped_column(
         BigInteger, autoincrement=True, nullable=False, comment="告警序号"

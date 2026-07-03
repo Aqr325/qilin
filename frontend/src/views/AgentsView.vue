@@ -171,8 +171,8 @@
 
             <div class="detail-actions">
               <button class="btn-primary" @click="restartAgent(detailAgent)">远程重启</button>
-              <button class="action-btn">策略下发</button>
-              <button class="action-btn" @click="showUpgradeDialog = true">远程升级</button>
+              <button class="action-btn" @click="deployPolicyToAgent(detailAgent)">策略下发</button>
+              <button class="action-btn" @click="openUpgradeDialogForAgent(detailAgent)">远程升级</button>
             </div>
           </div>
         </div>
@@ -221,13 +221,56 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Deploy Policy Dialog -->
+    <Teleport to="body">
+      <div v-if="showDeployPolicyDialog" class="modal-overlay" @click.self="closeDeployPolicyDialog">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h2>策略下发</h2>
+            <button class="drawer-close" @click="closeDeployPolicyDialog">
+              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l10 10M14 4l-10 10"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p style="font-size:var(--text-body-sm);color:var(--color-text-secondary);margin-bottom:var(--space-4);">
+              将策略下发到 Agent：
+              <span class="mono" style="color:var(--color-accent-500);">{{ deployAgent?.hostname }}</span>
+            </p>
+            <div class="form-group">
+              <label>选择策略</label>
+              <select v-model="deployPolicyForm.policyId" class="filter-select" style="width:100%;">
+                <option value="">请选择策略</option>
+                <option v-for="p in policyList" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="radio-label" style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" v-model="deployPolicyForm.force" style="accent-color:var(--color-accent-500);" />
+                强制下发（覆盖已有策略）
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="action-btn" @click="closeDeployPolicyDialog">取消</button>
+            <button class="btn-primary" @click="confirmDeployPolicy" :disabled="deploying">
+              {{ deploying ? '下发中...' : '确认下发' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAgentsStore } from '@/stores/agents'
-import type { Agent } from '@/types'
+
+defineOptions({ name: 'Agents' })
+import { policiesApi } from '@/services/api/policies'
+import { showToast } from '@/utils/toast'
+import type { Agent, Policy } from '@/types'
 
 const agentsStore = useAgentsStore()
 
@@ -237,15 +280,24 @@ const upgradeVersion = ref('3.2.1')
 const upgradeScope = ref('selected')
 const grayPercent = ref(30)
 
+// Policy list for deploy dialog
+const policyList = ref<Policy[]>([])
+const deploying = ref(false)
+
 function statusLabel(s: string) {
   const map: Record<string, string> = { online: '在线', offline: '离线', error: '异常', upgrading: '升级中', pending: '等待' }
   return map[s] || s
 }
 
 function agentStatusTag(s: string) {
-  const map: Record<string, string> = { online: 'status-pending', offline: 'status-pending', error: 'status-pending', upgrading: 'status-progress' }
-  const base = map[s] || 'status-pending'
-  return base
+  const map: Record<string, string> = {
+    online: 'status-resolved',
+    offline: 'status-pending',
+    error: 'status-pending',
+    upgrading: 'status-progress',
+    pending: 'status-pending',
+  }
+  return map[s] || 'status-pending'
 }
 
 function cpuBarClass(v: number | undefined) { const n = v ?? 0; return n > 80 ? 'bar-critical' : n > 60 ? 'bar-warn' : 'bar-ok' }
@@ -276,13 +328,90 @@ function restartAgent(agent: Agent) {
   }
 }
 
-function startUpgrade() {
-  agentsStore.upgradeAgents(agentsStore.agents.map(a => a.agent_id), upgradeVersion.value)
-  showUpgradeDialog.value = false
+async function startUpgrade() {
+  try {
+    const targetAgents = upgradeScope.value === 'selected'
+      ? agentsStore.agents.filter(a => a.status !== 'offline' && a.status !== 'error').map(a => a.agent_id)
+      : upgradeScope.value === 'online'
+        ? agentsStore.agents.filter(a => a.status === 'online').map(a => a.agent_id)
+        : agentsStore.agents.map(a => a.agent_id)
+
+    if (targetAgents.length === 0) {
+      showToast('没有可升级的 Agent', 'warning')
+      return
+    }
+    await agentsStore.upgradeAgents(targetAgents, upgradeVersion.value)
+    alert(`已向 ${targetAgents.length} 个 Agent 下发升级任务 v${upgradeVersion.value}`)
+    showUpgradeDialog.value = false
+    await agentsStore.fetchAgents()
+  } catch {
+    alert('升级任务下发失败')
+  }
+}
+
+// ── Policy Deploy to Agent ──
+const showDeployPolicyDialog = ref(false)
+const deployAgent = ref<Agent | null>(null)
+const deployPolicyForm = ref({
+  policyId: '',
+  force: false,
+})
+
+function deployPolicyToAgent(agent: Agent) {
+  deployAgent.value = agent
+  deployPolicyForm.value = { policyId: '', force: false }
+  showDeployPolicyDialog.value = true
+}
+
+function closeDeployPolicyDialog() {
+  showDeployPolicyDialog.value = false
+  deployAgent.value = null
+}
+
+async function confirmDeployPolicy() {
+  if (!deployPolicyForm.value.policyId || !deployAgent.value) {
+    showToast('请选择要下发的策略', 'warning')
+    return
+  }
+  deploying.value = true
+  try {
+    await policiesApi.deploy(deployPolicyForm.value.policyId, [deployAgent.value.agent_id], deployPolicyForm.value.force)
+    alert(`策略已成功下发到 Agent「${deployAgent.value.hostname}」`)
+  } catch {
+    alert('策略下发失败，请检查后端服务')
+  } finally {
+    deploying.value = false
+    closeDeployPolicyDialog()
+  }
+}
+
+function openUpgradeDialogForAgent(agent: Agent) {
+  upgradeScope.value = 'selected'
+  // Set selected agents to just this one for the upgrade
+  upgradeVersion.value = agent.agent_version === '3.2.1' ? '3.2.0' : '3.2.1'
+  showUpgradeDialog.value = true
+}
+
+async function loadPolicies() {
+  try {
+    const res = await policiesApi.list()
+    policyList.value = res.items
+  } catch {
+    // Fallback: populate with mock data if API unavailable
+    policyList.value = [
+      { id: 'policy-01', name: '文件完整性监控', policy_type: 'file_integrity', policy_type_label: '文件完整性监控' } as Policy,
+      { id: 'policy-02', name: '进程白名单', policy_type: 'process_whitelist', policy_type_label: '进程白名单' } as Policy,
+      { id: 'policy-03', name: '网络访问控制', policy_type: 'network_firewall', policy_type_label: '网络访问控制' } as Policy,
+      { id: 'policy-04', name: '登录安全策略', policy_type: 'login_policy', policy_type_label: '登录安全策略' } as Policy,
+      { id: 'policy-05', name: '漏洞扫描配置', policy_type: 'vulnerability_scan', policy_type_label: '漏洞扫描配置' } as Policy,
+      { id: 'policy-06', name: '日志审计规则', policy_type: 'log_audit', policy_type_label: '日志审计规则' } as Policy,
+    ]
+  }
 }
 
 onMounted(() => {
   agentsStore.fetchAgents()
+  loadPolicies()
 })
 </script>
 

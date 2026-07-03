@@ -20,6 +20,9 @@ async def get_overview(db: AsyncSession) -> DashboardOverview:
     total_alerts = await _count(db, Alert, Alert.is_deleted == False)
     active_alerts = await _count(db, Alert, Alert.status.in_(["new", "acknowledged", "investigating"]))
     critical_alerts = await _count(db, Alert, Alert.severity == "critical", Alert.is_deleted == False)
+    high_alerts = await _count(db, Alert, Alert.severity == "high", Alert.is_deleted == False)
+    medium_alerts = await _count(db, Alert, Alert.severity == "medium", Alert.is_deleted == False)
+    low_alerts = await _count(db, Alert, Alert.severity == "low", Alert.is_deleted == False)
     resolved_alerts = await _count(db, Alert, Alert.status.in_(["resolved", "closed"]))
     alerts_today = await _count(db, Alert, Alert.created_at >= today_start)
     resolved_today = await _count(db, Alert, Alert.created_at >= today_start, Alert.status == "resolved")
@@ -33,6 +36,9 @@ async def get_overview(db: AsyncSession) -> DashboardOverview:
         total_alerts=total_alerts,
         active_alerts=active_alerts,
         critical_alerts=critical_alerts,
+        high_alerts=high_alerts,
+        medium_alerts=medium_alerts,
+        low_alerts=low_alerts,
         resolved_alerts=resolved_alerts,
         total_agents=total_agents,
         online_agents=online_agents,

@@ -21,6 +21,7 @@ export interface SystemRole {
   display_name: string
   description: string
   permission_count: number
+  permissions: string[]
 }
 
 export const useSystemStore = defineStore('system', () => {
@@ -33,7 +34,14 @@ export const useSystemStore = defineStore('system', () => {
     loading.value = true
     try {
       const res = await api.get<any>('/system/users')
-      users.value = res.items || res
+      const items = res.items || res
+      // Map backend roles array to simple role string
+      users.value = (items as any[]).map(u => ({
+        ...u,
+        role: u.roles?.[0]?.name ?? u.roles?.[0]?.id ?? '',
+        is_active: u.is_active !== undefined ? u.is_active : true,
+        mfa_enabled: u.mfa_enabled ?? false,
+      }))
     } catch {
       users.value = getMockUsers()
     } finally {
@@ -44,7 +52,16 @@ export const useSystemStore = defineStore('system', () => {
   async function fetchRoles() {
     try {
       const res = await api.get<any>('/system/roles')
-      roles.value = res.items || res
+      // Backend returns list of roles directly
+      const items = res.data?.items ?? res.items ?? res.data ?? res
+      roles.value = (Array.isArray(items) ? items : []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        display_name: r.display_name,
+        description: r.description ?? '',
+        permission_count: r.permissions?.length ?? r.permission_count ?? 0,
+        permissions: (r.permissions ?? []).map((p: any) => p.id ?? p.permission ?? p),
+      }))
     } catch {
       roles.value = getMockRoles()
     }
@@ -77,11 +94,12 @@ function getMockUsers(): SystemUser[] {
 }
 
 function getMockRoles(): SystemRole[] {
+  const allPerms = ['alert:read', 'alert:write', 'agent:read', 'agent:write', 'policy:read', 'policy:write', 'policy:deploy', 'user:write', 'role:write', 'audit:read', 'system:write', 'ai:chat']
   return [
-    { id: 'role-1', name: 'admin', display_name: '系统管理员', description: '系统完全控制权限，包括用户管理、策略配置、系统设置', permission_count: 24 },
-    { id: 'role-2', name: 'operator', display_name: '安全运维员', description: '日常安全运维操作，告警处置、Agent管理、策略查看', permission_count: 16 },
-    { id: 'role-3', name: 'auditor', display_name: '安全审计员', description: '审计日志查看、报表导出、合规检查', permission_count: 10 },
-    { id: 'role-4', name: 'readonly', display_name: '只读用户', description: '仅可查看仪表盘和告警信息，无操作权限', permission_count: 6 },
+    { id: 'role-1', name: 'admin', display_name: '系统管理员', description: '系统完全控制权限，包括用户管理、策略配置、系统设置', permission_count: allPerms.length, permissions: allPerms },
+    { id: 'role-2', name: 'operator', display_name: '安全运维员', description: '日常安全运维操作，告警处置、Agent管理、策略查看', permission_count: 6, permissions: ['alert:read', 'alert:write', 'agent:read', 'agent:write', 'policy:read', 'ai:chat'] },
+    { id: 'role-3', name: 'auditor', display_name: '安全审计员', description: '审计日志查看、报表导出、合规检查', permission_count: 4, permissions: ['alert:read', 'agent:read', 'policy:read', 'audit:read'] },
+    { id: 'role-4', name: 'readonly', display_name: '只读用户', description: '仅可查看仪表盘和告警信息，无操作权限', permission_count: 2, permissions: ['alert:read', 'agent:read'] },
   ]
 }
 

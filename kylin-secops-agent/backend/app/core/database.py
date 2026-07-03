@@ -1,5 +1,6 @@
 """Database engine and session management."""
 
+import uuid
 from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import (
@@ -8,24 +9,42 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 
 
 # ── Async Engine ──
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    echo=settings.DB_ECHO,
-    pool_pre_ping=True,
-    # For async with partitioned tables
-    connect_args={
-        "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0,
-    },
-)
+def _create_engine():
+    """Create async engine with SQLite-compatible settings.
+
+    Reads DATABASE_URL from environment first (set by backend_entry.py/desktop_server.py),
+    then falls back to config default.
+    """
+    import os
+    url = os.environ.get("DATABASE_URL", settings.DATABASE_URL)
+    if url.startswith("sqlite"):
+        return create_async_engine(
+            url,
+            echo=settings.DB_ECHO,
+            pool_pre_ping=True,
+            connect_args={"check_same_thread": False},
+        )
+    else:
+        return create_async_engine(
+            url,
+            pool_size=settings.DB_POOL_SIZE,
+            max_overflow=settings.DB_MAX_OVERFLOW,
+            echo=settings.DB_ECHO,
+            pool_pre_ping=True,
+            connect_args={
+                "statement_cache_size": 0,
+                "prepared_statement_cache_size": 0,
+            },
+        )
+
+
+engine = _create_engine()
+
 
 # ── Session Factory ──
 async_session_factory = async_sessionmaker(
@@ -76,10 +95,61 @@ class DatabaseSession:
             await self.session.close()
 
 
+# ── Indexes ──
+
+async def _ensure_indexes():
+    """Create additional indexes that are not part of ORM model definitions.
+
+    These indexes target high-frequency query patterns for better performance.
+    """
+    from sqlalchemy import text as sa_text
+
+    # Composite index definitions: (table, columns, index_name, where_clause)
+    indexes = [
+        # ── users ──
+        ("users", "role_id", "ix_users_role_id", None),
+        ("user_roles", "user_id, role_id", "ix_user_roles_user_id_role_id", None),
+        # ── agents ──
+        ("agents", "status", "ix_agents_status", None),
+        # ── alerts ──
+        ("alerts", "severity, status", "ix_alerts_severity_status", None),
+        ("alerts", "status", "ix_alerts_status", None),
+        # ── agent_heartbeats (used as agent_events surrogate) ──
+        ("agent_heartbeats", "agent_id, received_at", "ix_agent_heartbeats_agent_time", None),
+        ("agent_heartbeats", "received_at", "ix_agent_heartbeats_received_at", None),
+        # ── audit_logs ──
+        ("audit_logs", "action, resource_type, created_at", "ix_audit_logs_action_resource_time", None),
+        ("audit_logs", "user_id, created_at", "ix_audit_logs_user_id_created_at", None),
+        # ── login_logs ──
+        ("login_logs", "username, login_at", "ix_login_logs_username_login_at", None),
+        ("login_logs", "ip_address, login_at", "ix_login_logs_ip_login_at", None),
+        # ── policies ──
+        ("policies", "policy_type, status", "ix_policies_type_status", None),
+        ("policies", "status", "ix_policies_status", None),
+        # ── policy_targets ──
+        ("policy_targets", "policy_id, agent_id", "ix_policy_targets_policy_agent", None),
+        ("policy_targets", "agent_id, status", "ix_policy_targets_agent_status", None),
+    ]
+
+    async with engine.begin() as conn:
+        for table, cols, name, where in indexes:
+            sql = f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({cols})"
+            if where:
+                sql += f" WHERE {where}"
+            try:
+                await conn.execute(sa_text(sql))
+            except Exception as e:
+                # SQLite / PostgreSQL may raise on existing index; ignore
+                pass
+
+
 async def init_db():
-    """Create all tables and seed default roles/permissions/users."""
+    """Create all tables, indexes, and seed default roles/permissions/users."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # ── Create indexes ──
+    await _ensure_indexes()
 
     # Seed roles, permissions, and default users on first run
     from datetime import datetime, timezone
@@ -200,6 +270,36 @@ async def init_db():
                         "role_id": str(role.id),
                     }
                 )
+
+        # 5. Seed default model configs for each user (if none exist)
+        from app.models.ai import AiModelConfig
+        from sqlalchemy import select, func as sql_func
+
+        # Only seed for the admin user as a default template
+        admin_user = await session.execute(
+            select(User).where(User.username == "admin")
+        )
+        admin = admin_user.scalar_one_or_none()
+        if admin:
+            existing_configs = await session.execute(
+                select(sql_func.count(AiModelConfig.id)).where(AiModelConfig.user_id == admin.id)
+            )
+            config_count = existing_configs.scalar_one() or 0
+            if config_count == 0:
+                # Seed a default mock config so the UI shows something
+                session.add(AiModelConfig(
+                    user_id=admin.id,
+                    name="麒麟AI助手",
+                    provider="custom",
+                    model="qilin-secops-ai",
+                    api_url=None,
+                    api_key=None,
+                    temperature=0.3,
+                    max_tokens=4096,
+                    system_prompt="你是一个安全运维AI助手，基于麒麟操作系统安全运维平台的数据为用户提供专业分析和建议。",
+                    is_active=1,
+                    is_default=1,
+                ))
 
         await session.commit()
 

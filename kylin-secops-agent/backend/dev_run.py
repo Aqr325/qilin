@@ -42,7 +42,8 @@ sa_asyncio.create_async_engine = _patched_create_engine
 
 # Override settings BEFORE app imports
 os.environ["JWT_ALGORITHM"] = "HS256"
-os.environ["JWT_SECRET_KEY"] = "kylin-secops-dev-key-2026-local"
+import secrets
+os.environ["JWT_SECRET_KEY"] = secrets.token_hex(32)
 os.environ["REDIS_HOST"] = ""
 os.environ["DEBUG"] = "True"
 

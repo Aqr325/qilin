@@ -13,6 +13,9 @@ from app.schemas.ai import (
     AIQueryResponse,
     AISuggestRequest,
     AISuggestion,
+    AiModelConfig,
+    AiModelConfigCreate,
+    AiModelConfigUpdate,
     ConversationDetail,
     ConversationSummary,
 )
@@ -102,3 +105,71 @@ async def ai_feedback(
     """AI回答反馈."""
     await ai_service.save_feedback(db, req, user=current_user)
     return ApiResponse(message="反馈已保存")
+
+
+# ── Model Config CRUD ──
+
+@router.get("/model-configs", response_model=ApiResponse[list[AiModelConfig]])
+async def list_model_configs(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取当前用户的模型配置列表."""
+    result = await ai_service.list_model_configs(db, user_id=current_user["id"])
+    return ApiResponse(data=result)
+
+
+@router.post("/model-configs", response_model=ApiResponse[AiModelConfig])
+async def create_model_config(
+    req: AiModelConfigCreate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """创建模型配置."""
+    result = await ai_service.create_model_config(db, req, user_id=current_user["id"])
+    return ApiResponse(data=result)
+
+
+@router.get("/model-configs/{config_id}", response_model=ApiResponse[AiModelConfig])
+async def get_model_config(
+    config_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取单个模型配置."""
+    result = await ai_service.get_model_config(db, config_id, user_id=current_user["id"])
+    return ApiResponse(data=result)
+
+
+@router.put("/model-configs/{config_id}", response_model=ApiResponse[AiModelConfig])
+async def update_model_config(
+    config_id: str,
+    req: AiModelConfigUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新模型配置."""
+    result = await ai_service.update_model_config(db, config_id, req, user_id=current_user["id"])
+    return ApiResponse(data=result)
+
+
+@router.delete("/model-configs/{config_id}", response_model=ApiResponse)
+async def delete_model_config(
+    config_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """删除模型配置."""
+    await ai_service.delete_model_config(db, config_id, user_id=current_user["id"])
+    return ApiResponse(message="模型配置已删除")
+
+
+@router.put("/model-configs/{config_id}/set-default", response_model=ApiResponse[AiModelConfig])
+async def set_default_model_config(
+    config_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """设置默认模型."""
+    result = await ai_service.set_default_model_config(db, config_id, user_id=current_user["id"])
+    return ApiResponse(data=result)

@@ -1,11 +1,10 @@
 """
 麒麟OS 安全智能运维Agent — 桌面版入口
-用于 PyInstaller 打包，内嵌 SQLite 补丁 + 种子数据自动初始化
+持久化 SQLite 数据库 + 种子数据自动初始化
 """
 
 import os
 import sys
-import json
 import uuid
 
 # SQL import used later for sqlite3 in event registration
@@ -32,12 +31,13 @@ BASE_DIR = _get_base_dir()
 # Data directory (writable, next to the exe or in cwd)
 def _get_data_dir() -> str:
     if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
+        # Desktop app: data file placed next to executable
+        return os.path.dirname(os.path.abspath(sys.executable))
     return BASE_DIR
 
 
 DATA_DIR = _get_data_dir()
-DB_PATH = os.path.join(DATA_DIR, "kylin_secops_dev.db")
+DB_PATH = os.path.join(DATA_DIR, "kylin_secops.db")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -227,16 +227,7 @@ def _seed_database_sync():
 # ══════════════════════════════════════════════════════════════
 # Register SQLite gen_random_uuid() event
 # ══════════════════════════════════════════════════════════════
-
-from sqlalchemy import event as sa_event
-from app.core.database import engine
-
-
-@sa_event.listens_for(engine.sync_engine, "connect")
-def _sqlite_setup(dbapi_conn, _record):
-    if not isinstance(dbapi_conn, sqlite3.Connection):
-        return
-    dbapi_conn.create_function("gen_random_uuid", 0, lambda: str(uuid.uuid4()))
+# (No longer needed — models use default=uuid.uuid4 instead of server_default=func.gen_random_uuid())
 
 
 # ══════════════════════════════════════════════════════════════
@@ -252,7 +243,7 @@ if __name__ == "__main__":
     print(f"  [Redis] 已跳过")
 
     # Auto-seed on first run
-_seed_database_sync()
+    _seed_database_sync()
 
     # Import the FastAPI app
     from app.main import app

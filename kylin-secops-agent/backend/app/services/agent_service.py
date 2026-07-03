@@ -142,13 +142,35 @@ async def register_agent(
 
 async def process_batch_events(
     db: AsyncSession,
-    req: dict,
+    req: "AgentBatchEventsRequest",
 ) -> dict:
     """Process batch events from agent."""
-    events = req.get("events", [])
+    events = req.events if hasattr(req, 'events') else (req.get('events', []) if isinstance(req, dict) else [])
     received = len(events)
     failed = 0
-    return {"received": received, "failed": failed}
+    processed = 0
+
+    for event in events:
+        try:
+            event_type = event.get("type", "")
+            if event_type == "alert":
+                from app.models.alerts import Alert
+                import uuid
+                alert = Alert(
+                    id=uuid.uuid4(),
+                    source=event.get("source", ""),
+                    level=event.get("level", "medium"),
+                    title=event.get("title", "未知告警"),
+                    description=event.get("description", ""),
+                    status="pending",
+                )
+                db.add(alert)
+                await db.flush()
+            processed += 1
+        except Exception:
+            failed += 1
+
+    return {"received": received, "processed": processed, "failed": failed}
 
 
 async def get_agent_config(
@@ -160,11 +182,34 @@ async def get_agent_config(
     agent = await agent_repo.get_by_agent_id(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+
+    # Load deployed policies for this agent
+    from app.models.policy import Policy, PolicyDeployStatus
+    from sqlalchemy import select
+    stmt = (
+        select(Policy, PolicyDeployStatus)
+        .join(PolicyDeployStatus, Policy.id == PolicyDeployStatus.policy_id)
+        .where(
+            PolicyDeployStatus.agent_id == agent.id,
+            PolicyDeployStatus.status == "deployed",
+        )
+    )
+    results = await db.execute(stmt)
+    policies = []
+    for policy, deploy in results:
+        policies.append({
+            "id": str(policy.id),
+            "name": policy.name,
+            "type": policy.type,
+            "rules": policy.rules,
+            "config_version": deploy.config_version,
+        })
+
     return {
         "agent_id": agent.agent_id,
         "config_version": agent.config_version,
         "heartbeat_interval": 10,
-        "policies": [],
+        "policies": policies,
     }
 
 
@@ -174,7 +219,20 @@ async def process_task_result(
     req: dict,
 ) -> dict:
     """Process task result from agent."""
-    return {"message": "Task result received"}
+    task_id = req.get("task_id", "")
+    status = req.get("status", "")
+    result_data = req.get("result", {})
+    error_msg = req.get("error", "")
+
+    if not task_id:
+        return {"message": "Missing task_id", "success": False}
+
+    return {
+        "message": f"Task result received: {task_id}",
+        "task_id": task_id,
+        "status": status,
+        "success": status == "success",
+    }
 
 
 async def list_agents(
@@ -344,7 +402,17 @@ async def upgrade_agents(
     operator: str,
 ) -> dict:
     """Upgrade agents."""
-    return {"task_id": str(uuid.uuid4()), "scheduled_count": len(req.get("agent_ids", []))}
+    agent_ids = req.get("agent_ids", [])
+    target_version = req.get("target_version", "")
+    if not agent_ids:
+        return {"task_id": str(uuid.uuid4()), "scheduled_count": 0, "error": "No agents selected"}
+
+    # In production: create upgrade tasks and notify agents via WebSocket
+    return {
+        "task_id": str(uuid.uuid4()),
+        "scheduled_count": len(agent_ids),
+        "target_version": target_version,
+    }
 
 
 async def get_upgrade_history(
@@ -361,7 +429,8 @@ async def restart_agent(
     operator: str,
 ) -> dict:
     """Restart agent."""
-    return {"task_id": str(uuid.uuid4())}
+    # In production: send restart command via WebSocket
+    return {"task_id": str(uuid.uuid4()), "agent_id": agent_id}
 
 
 async def get_agent_tasks(

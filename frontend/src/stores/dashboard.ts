@@ -50,6 +50,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
         pending: (res.total_agents ?? 0) - (res.online_agents ?? 0) - (res.offline_agents ?? 0),
       }
       criticalCount.value = res.critical_alerts ?? 0
+      highCount.value = res.high_alerts ?? 0
+      mediumCount.value = res.medium_alerts ?? 0
+      lowCount.value = res.low_alerts ?? 0
     } catch {
       // Use mock defaults — already set
     } finally {
@@ -60,7 +63,33 @@ export const useDashboardStore = defineStore('dashboard', () => {
   async function fetchAlertTrend() {
     try {
       const res = await api.get<AlertTrend[]>('/dashboard/alert-trend?days=7')
-      alertTrend.value = res
+      // Backend returns TrendData: { labels, datasets } — transform to AlertTrend[]
+      if (res && typeof res === 'object' && 'labels' in res && 'datasets' in res) {
+        const labels = (res as any).labels as string[]
+        const datasets = (res as any).datasets as Array<{ label: string; data: number[] }>
+        const buildMap = (label: string): number[] => {
+          const ds = datasets.find(d => d.label === label)
+          return ds?.data ?? labels.map(() => 0)
+        }
+        alertTrend.value = labels.map(date => ({
+          date: (() => {
+            const parts = date.split('-')
+            return parts.length >= 2 ? `${parts[1]}/${parts[2]}` : date
+          })(),
+          critical: buildMap('critical'),
+          high: buildMap('high'),
+          medium: buildMap('medium'),
+          low: buildMap('low'),
+        })).map((item, i) => ({
+          date: item.date,
+          critical: item.critical[i] || 0,
+          high: item.high[i] || 0,
+          medium: item.medium[i] || 0,
+          low: item.low[i] || 0,
+        }))
+      } else {
+        alertTrend.value = Array.isArray(res) ? res : []
+      }
     } catch {
       // Generate mock 7-day data
       const trend: AlertTrend[] = []

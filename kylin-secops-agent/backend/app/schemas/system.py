@@ -12,11 +12,12 @@ class UserCreate(BaseModel):
     """创建用户请求."""
 
     username: str = Field(..., min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
-    password: str = Field(..., min_length=12, max_length=128)
+    password: str = Field(..., min_length=8, max_length=128)
     display_name: str = Field(..., min_length=1, max_length=100)
-    email: EmailStr
+    email: str
     phone: Optional[str] = None
-    role_ids: List[str] = Field(default_factory=list)
+    role: Optional[str] = None  # Role name (admin/operator/auditor/readonly)
+    role_ids: List[str] = Field(default_factory=list)  # Fallback: explicit UUIDs
     is_active: bool = True
 
 
@@ -24,8 +25,9 @@ class UserUpdate(BaseModel):
     """更新用户请求."""
 
     display_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     phone: Optional[str] = None
+    role: Optional[str] = None  # Role name
     role_ids: Optional[List[str]] = None
     is_active: Optional[bool] = None
 

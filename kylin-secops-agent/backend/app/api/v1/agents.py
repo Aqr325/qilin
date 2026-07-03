@@ -13,6 +13,7 @@ from app.schemas.agent import (
     AgentRegisterRequest,
     AgentSummary,
     AgentTask,
+    AgentTaskResultRequest,
     AgentUpgradeRequest,
     HealthOverview,
     HeartbeatRecord,
@@ -73,11 +74,17 @@ async def agent_get_config(
 @router.post("/{agent_id}/result", response_model=ApiResponse)
 async def agent_task_result(
     agent_id: str,
-    req: dict,
+    req: AgentTaskResultRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """Agent任务结果上报."""
-    result = await agent_service.process_task_result(db, agent_id, req)
+    result = await agent_service.process_task_result(
+        db, agent_id, {
+            "task_id": req.task_id,
+            "status": req.status,
+            "output": req.output,
+        }
+    )
     return ApiResponse(data=result)
 
 

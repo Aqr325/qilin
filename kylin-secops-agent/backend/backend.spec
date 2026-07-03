@@ -224,6 +224,12 @@ extra_hidden_imports = [
     '__editable___kylin_secops_agent_1_0_0_finder',
 ]
 
+# greenlet is required by sqlalchemy for async support — must NOT be excluded
+extra_hidden_imports.append('greenlet')
+extra_hidden_imports.append('greenlet.context')
+extra_hidden_imports.append('greenlet.hierarchy')
+extra_hidden_imports.append('greenlet.std_context')
+
 hidden_imports = list(app_hidden_imports) + list(set(extra_hidden_imports))
 
 # Alembic assets to bundle

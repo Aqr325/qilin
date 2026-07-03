@@ -27,7 +27,7 @@ class Policy(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "policies"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
     name: Mapped[str] = mapped_column(
         String(128), nullable=False, index=True, comment="策略名称"
@@ -88,7 +88,7 @@ class PolicyVersion(Base):
     __tablename__ = "policy_versions"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
     policy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("policies.id", ondelete="CASCADE"),

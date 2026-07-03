@@ -35,12 +35,31 @@ export const useAlertsStore = defineStore('alerts', () => {
       const res = await api.get<PaginatedResponse<Alert>>(`/alerts?${params.toString()}`)
       alerts.value = res.items
       total.value = res.total
+
+      // Also fetch stats
+      await fetchStats()
     } catch {
       // Use mock data when API unavailable
       alerts.value = getMockAlerts()
       total.value = 42
+      // Keep existing hardcoded stats
     } finally {
       loading.value = false
+    }
+  }
+
+  async function fetchStats() {
+    try {
+      const res = await api.get<{
+        total: number; new_count: number; critical_count: number; resolved_count: number;
+        by_severity: Record<string, number>; by_status: Record<string, number>
+      }>('/alerts/stats')
+      pendingCount.value = res.by_status?.new ?? res.new_count ?? 0
+      inProgressCount.value = res.by_status?.acknowledged ?? 0
+      todayNewCount.value = res.new_count ?? 0
+      resolvedCount.value = res.resolved_count ?? 0
+    } catch {
+      // Keep existing values
     }
   }
 
@@ -105,7 +124,7 @@ export const useAlertsStore = defineStore('alerts', () => {
     filterSeverity, filterStatus, filterAgent, searchKeyword,
     selectedAlerts,
     pendingCount, inProgressCount, todayNewCount, resolvedCount,
-    fetchAlerts, batchUpdateStatus, toggleSelect, toggleSelectAll, setFilter,
+    fetchAlerts, fetchStats, batchUpdateStatus, toggleSelect, toggleSelectAll, setFilter,
     startPolling, stopPolling,
   }
 })

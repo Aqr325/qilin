@@ -40,10 +40,13 @@ if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         else:
             # Hardcoded fallback
             PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(sys.executable)))
+    # Data directory: where config.json and db live (next to exe)
+    data_dir = os.path.dirname(os.path.abspath(sys.executable))
 else:
     # Source mode: desktop/ sits inside project root
     base_dir = os.path.dirname(os.path.abspath(__file__))
     PROJECT_DIR = os.path.dirname(base_dir)
+    data_dir = os.path.join(PROJECT_DIR, 'desktop')
 
 BACKEND_DIR = os.path.join(PROJECT_DIR, 'backend')
 # Fallback: if backend/ doesn't exist at PROJECT_DIR, check kylin-secops-agent/backend/

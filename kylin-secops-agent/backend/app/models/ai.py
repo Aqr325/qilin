@@ -1,4 +1,4 @@
-"""AiConversation model."""
+"""AI conversation and model configuration models."""
 
 import uuid
 from datetime import datetime
@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy import (
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     SmallInteger,
@@ -26,7 +27,7 @@ class AiConversation(Base, TimestampMixin):
     __tablename__ = "ai_conversations"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True,
@@ -60,4 +61,49 @@ class AiConversation(Base, TimestampMixin):
     )
     duration_ms: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, comment="处理耗时"
+    )
+
+
+class AiModelConfig(Base, TimestampMixin):
+    """自定义大模型配置表."""
+
+    __tablename__ = "ai_model_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True,
+        comment="配置所属用户"
+    )
+    name: Mapped[str] = mapped_column(
+        String(128), nullable=False, comment="配置名称，如：GPT-4-turbo"
+    )
+    provider: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="custom",
+        comment="提供商：openai / anthropic / ollama / custom"
+    )
+    model: Mapped[str] = mapped_column(
+        String(128), nullable=False, comment="模型标识，如：gpt-4-turbo"
+    )
+    api_url: Mapped[Optional[str]] = mapped_column(
+        String(512), nullable=True, comment="API 地址（可选）"
+    )
+    api_key: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="API Key"
+    )
+    temperature: Mapped[float] = mapped_column(
+        Float, default=0.7, server_default="0.7", comment="温度参数 0.0-2.0"
+    )
+    max_tokens: Mapped[int] = mapped_column(
+        Integer, default=4096, server_default="4096", comment="最大输出 Token 数"
+    )
+    system_prompt: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="系统提示词（可选）"
+    )
+    is_active: Mapped[bool] = mapped_column(
+        SmallInteger, default=1, server_default="1", comment="是否启用"
+    )
+    is_default: Mapped[bool] = mapped_column(
+        SmallInteger, default=0, server_default="0", comment="是否为默认模型"
     )

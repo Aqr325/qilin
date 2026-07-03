@@ -3,8 +3,6 @@
         "host": "127.0.0.1",
         "port": 8001,
         "debug": false,
-        "log_file": "logs/backend.log",
-        "log_level": "info",
         "database": {
             "dialect": "sqlite",
             "url": "kylin_secops.db"
@@ -30,13 +28,13 @@
         "port": 5173
     },
     "desktop": {
-        "version": "1.0.0",
+        "version": "2.1.0",
         "project_name": "麒麟OS安全智能运维Agent",
         "icon_path": "./icon.png",
         "auto_start_backend": true,
         "auto_open_browser": false,
-        "backend_ready_timeout_seconds": 30,
-        "health_check_interval_seconds": 0.5,
+        "backend_ready_timeout_seconds": 60,
+        "health_check_interval_seconds": 5,
         "data_directory": "./data"
     }
 }

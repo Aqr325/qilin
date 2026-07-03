@@ -61,7 +61,15 @@ async def create_user(
 
     # Assign roles
     role_repo = RoleRepository(db)
-    for role_id in req.role_ids:
+
+    # If role name provided, resolve to role IDs
+    role_ids_to_assign: List[str] = list(req.role_ids)
+    if req.role and not req.role_ids:
+        role_obj = await role_repo.get_by_name(req.role)
+        if role_obj:
+            role_ids_to_assign = [str(role_obj.id)]
+
+    for role_id in role_ids_to_assign:
         role = await role_repo.get(uuid.UUID(role_id))
         if role:
             await db.execute(
@@ -141,20 +149,29 @@ async def update_user(
 
     update_data = req.model_dump(exclude_unset=True)
     role_ids = update_data.pop("role_ids", None)
+    role_name = update_data.pop("role", None)
 
     for field, value in update_data.items():
         if hasattr(user, field):
             setattr(user, field, value)
 
+    # Resolve role name to IDs
+    role_ids_to_assign: Optional[List[str]] = role_ids
+    if role_name and role_ids is None:
+        role_repo = RoleRepository(db)
+        role_obj = await role_repo.get_by_name(role_name)
+        if role_obj:
+            role_ids_to_assign = [str(role_obj.id)]
+
     # Update roles if provided
-    if role_ids is not None:
+    if role_ids_to_assign is not None:
         # Remove existing roles
         await db.execute(
             user_roles.delete().where(user_roles.c.user_id == user.id)
         )
         # Add new roles
         role_repo = RoleRepository(db)
-        for rid in role_ids:
+        for rid in role_ids_to_assign:
             role = await role_repo.get(uuid.UUID(rid))
             if role:
                 await db.execute(
@@ -166,6 +183,7 @@ async def update_user(
                 )
 
     await db.flush()
+    await db.refresh(user, ['roles'])
     return await _user_to_detail(user)
 
 
@@ -193,6 +211,7 @@ async def toggle_user_status(
         raise HTTPException(status_code=404, detail="用户不存在")
     user.is_active = is_active
     await db.flush()
+    await db.refresh(user, ['roles'])
     return await _user_to_detail(user)
 
 
@@ -215,6 +234,26 @@ async def list_roles(db: AsyncSession) -> List[RoleDetail]:
         )
         for r in roles
     ]
+
+
+async def get_role_detail(db: AsyncSession, role_id: str) -> RoleDetail:
+    """角色详情."""
+    role_repo = RoleRepository(db)
+    role = await role_repo.get(uuid.UUID(role_id))
+    if not role or role.is_deleted:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    return RoleDetail(
+        id=str(role.id),
+        name=role.name,
+        display_name=role.display_name,
+        description=role.description,
+        is_system=role.is_system,
+        permissions=[
+            {"id": str(p.id), "code": p.code, "name": p.name}
+            for p in role.permissions
+        ],
+        created_at=role.created_at,
+    )
 
 
 async def create_role(
@@ -249,7 +288,20 @@ async def create_role(
             )
 
     await db.flush()
-    return (await list_roles(db))[0] if (await list_roles(db)) else RoleDetail()
+    await db.refresh(role)
+
+    return RoleDetail(
+        id=str(role.id),
+        name=role.name,
+        display_name=role.display_name,
+        description=role.description,
+        is_system=role.is_system,
+        permissions=[
+            {"id": str(p.id), "code": p.code, "name": p.name}
+            for p in role.permissions
+        ],
+        created_at=role.created_at,
+    )
 
 
 async def update_role(
@@ -290,7 +342,20 @@ async def update_role(
                 )
 
     await db.flush()
-    return (await list_roles(db))[0] or RoleDetail()
+    await db.refresh(role)
+
+    return RoleDetail(
+        id=str(role.id),
+        name=role.name,
+        display_name=role.display_name,
+        description=role.description,
+        is_system=role.is_system,
+        permissions=[
+            {"id": str(p.id), "code": p.code, "name": p.name}
+            for p in role.permissions
+        ],
+        created_at=role.created_at,
+    )
 
 
 async def delete_role(db: AsyncSession, role_id: str, operator: dict):

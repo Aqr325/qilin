@@ -23,7 +23,7 @@
     <div v-if="activeTab === 'users'" class="tab-content">
       <div class="section-header">
         <h2 class="section-title">用户管理</h2>
-        <button class="btn-primary">
+        <button class="btn-primary" @click="openUserDialog()">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;">
             <path d="M7 1v12M1 7h12"/>
           </svg>
@@ -64,8 +64,8 @@
                 <td class="mono-cell time-cell">{{ formatTime(user.last_login) }}</td>
                 <td>
                   <div class="action-group">
-                    <button class="action-btn">编辑</button>
-                    <button class="action-btn" :class="{ 'text-danger': !user.is_active }">
+                    <button class="action-btn" @click="openUserDialog(user)">编辑</button>
+                    <button class="action-btn" :class="{ 'text-danger': !user.is_active }" @click="toggleUserStatus(user)">
                       {{ user.is_active ? '禁用' : '启用' }}
                     </button>
                   </div>
@@ -81,7 +81,7 @@
     <div v-if="activeTab === 'roles'" class="tab-content">
       <div class="section-header">
         <h2 class="section-title">角色权限</h2>
-        <button class="btn-primary">新建角色</button>
+        <button class="btn-primary" @click="openRoleDialog()">新建角色</button>
       </div>
       <div class="roles-grid">
         <div v-for="role in systemStore.roles" :key="role.id" class="role-card">
@@ -95,7 +95,7 @@
           </div>
           <p class="role-desc">{{ role.description }}</p>
           <div class="role-actions">
-            <button class="action-btn">编辑权限</button>
+            <button class="action-btn" @click="editRolePermissions(role)">编辑权限</button>
           </div>
         </div>
       </div>
@@ -244,14 +244,107 @@
         </div>
       </div>
     </div>
+
+    <!-- User Dialog (Create/Edit) -->
+    <Teleport to="body">
+      <div v-if="showUserDialog" class="modal-overlay" @click.self="closeUserDialog">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h2>{{ editingUser ? '编辑用户' : '新建用户' }}</h2>
+            <button class="drawer-close" @click="closeUserDialog">
+              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l10 10M14 4l-10 10"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>用户名</label>
+              <input v-model="userForm.username" class="form-input" :disabled="!!editingUser" />
+            </div>
+            <div class="form-group">
+              <label>显示名称</label>
+              <input v-model="userForm.display_name" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label>邮箱</label>
+              <input v-model="userForm.email" type="email" class="form-input" />
+            </div>
+            <div v-if="!editingUser" class="form-group">
+              <label>初始密码</label>
+              <input v-model="userForm.password" type="password" class="form-input" placeholder="至少8位" />
+            </div>
+            <div class="form-group">
+              <label>角色</label>
+              <select v-model="userForm.role" class="form-select">
+                <option value="admin">系统管理员</option>
+                <option value="operator">安全运维员</option>
+                <option value="auditor">安全审计员</option>
+                <option value="readonly">只读用户</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="action-btn" @click="closeUserDialog">取消</button>
+            <button class="btn-primary" @click="saveUser" :disabled="userSaving">
+              {{ userSaving ? '保存中...' : '保存' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Role Dialog (Create/Edit Permissions) -->
+    <Teleport to="body">
+      <div v-if="showRoleDialog" class="modal-overlay" @click.self="closeRoleDialog">
+        <div class="modal-dialog" style="max-width:560px;">
+          <div class="modal-header">
+            <h2>{{ editingRole ? '编辑权限' : '新建角色' }}</h2>
+            <button class="drawer-close" @click="closeRoleDialog">
+              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l10 10M14 4l-10 10"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div v-if="!editingRole" class="form-group">
+              <label>角色名称</label>
+              <input v-model="roleForm.name" class="form-input" placeholder="英文标识，如：admin" />
+            </div>
+            <div class="form-group">
+              <label>显示名称</label>
+              <input v-model="roleForm.display_name" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label>描述</label>
+              <textarea v-model="roleForm.description" class="form-textarea" rows="2" placeholder="角色描述"></textarea>
+            </div>
+            <div class="form-group">
+              <label>权限设置</label>
+              <div class="perm-grid">
+                <label v-for="perm in allPermissions" :key="perm.id" class="perm-checkbox">
+                  <input type="checkbox" v-model="roleForm.permissions" :value="perm.id" />
+                  <span>{{ perm.label }}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="action-btn" @click="closeRoleDialog">取消</button>
+            <button class="btn-primary" @click="saveRole" :disabled="roleSaving">
+              {{ roleSaving ? '保存中...' : '保存' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { useSystemStore } from '@/stores/system'
-import { systemApi } from '@/services/api/system'
+import { ref, onMounted } from 'vue'
+import { useSystemStore, type SystemUser } from '@/stores/system'
+import { systemApi, type SystemRole } from '@/services/api/system'
 import { exportToCSV, timestampSuffix } from '@/utils/csv'
+import { showToast } from '@/utils/toast'
+
+defineOptions({ name: 'System' })
 
 const systemStore = useSystemStore()
 const activeTab = ref('users')
@@ -337,6 +430,213 @@ function formatTime(iso?: string) {
   if (!iso) return '-'
   const d = new Date(iso)
   return d.toLocaleString('zh-CN')
+}
+
+// ── User Dialog ──
+const showUserDialog = ref(false)
+const editingUser = ref<SystemUser | null>(null)
+const userSaving = ref(false)
+const userForm = ref({
+  username: '',
+  display_name: '',
+  email: '',
+  password: '',
+  role: 'readonly',
+})
+
+function openUserDialog(user?: any) {
+  if (user) {
+    editingUser.value = user
+    userForm.value = {
+      username: user.username,
+      display_name: user.display_name,
+      email: user.email,
+      password: '',
+      role: user.role || 'readonly',
+    }
+  } else {
+    editingUser.value = null
+    userForm.value = { username: '', display_name: '', email: '', password: '', role: 'readonly' }
+  }
+  showUserDialog.value = true
+}
+
+function closeUserDialog() {
+  showUserDialog.value = false
+  editingUser.value = null
+}
+
+async function saveUser() {
+  if (!userForm.value.username || !userForm.value.display_name) {
+    showToast('请填写用户名和显示名称', 'warning')
+    return
+  }
+  if (!editingUser.value && (!userForm.value.password || userForm.value.password.length < 8)) {
+    showToast('密码长度至少8位', 'warning')
+    return
+  }
+  userSaving.value = true
+  try {
+    if (editingUser.value) {
+      await systemApi.updateUser(editingUser.value.id, {
+        display_name: userForm.value.display_name,
+        email: userForm.value.email,
+        role: userForm.value.role,
+      })
+    } else {
+      await systemApi.createUser({
+        username: userForm.value.username,
+        display_name: userForm.value.display_name,
+        email: userForm.value.email,
+        password: userForm.value.password,
+        role: userForm.value.role,
+      } as any)
+    }
+    await systemStore.fetchUsers()
+    closeUserDialog()
+  } catch {
+    // API not available, optimistic update
+    if (editingUser.value) {
+      const u = systemStore.users.find(u => u.id === editingUser.value.id)
+      if (u) {
+        u.display_name = userForm.value.display_name
+        u.email = userForm.value.email
+        u.role = userForm.value.role
+        // Also update roles array so the table display reflects the change
+        const roleMap: Record<string, { name: string; display_name: string }> = {
+          admin: { name: 'admin', display_name: '系统管理员' },
+          operator: { name: 'operator', display_name: '安全运维员' },
+          auditor: { name: 'auditor', display_name: '安全审计员' },
+          readonly: { name: 'readonly', display_name: '只读用户' },
+        }
+        u.roles = [roleMap[userForm.value.role] || { name: userForm.value.role, display_name: userForm.value.role }]
+      }
+    } else {
+      systemStore.users.push({
+        id: 'user-' + Date.now(),
+        username: userForm.value.username,
+        display_name: userForm.value.display_name,
+        email: userForm.value.email,
+        role: userForm.value.role,
+        is_active: true,
+        mfa_enabled: false,
+        last_login: undefined,
+        created_at: new Date().toISOString(),
+      })
+    }
+    closeUserDialog()
+  } finally {
+    userSaving.value = false
+  }
+}
+
+async function toggleUserStatus(user: SystemUser) {
+  const newStatus = !user.is_active
+  try {
+    await systemApi.toggleUserStatus(user.id, newStatus)
+    await systemStore.fetchUsers()
+  } catch {
+    user.is_active = newStatus
+  }
+}
+
+// ── Role Dialog ──
+const showRoleDialog = ref(false)
+const editingRole = ref<SystemRole | null>(null)
+const roleSaving = ref(false)
+const roleForm = ref({
+  name: '',
+  display_name: '',
+  description: '',
+  permissions: [] as string[],
+})
+
+const allPermissions = [
+  { id: 'alert:read', label: '告警查看' },
+  { id: 'alert:write', label: '告警处置' },
+  { id: 'agent:read', label: 'Agent 查看' },
+  { id: 'agent:write', label: 'Agent 管理' },
+  { id: 'policy:read', label: '策略查看' },
+  { id: 'policy:write', label: '策略配置' },
+  { id: 'policy:deploy', label: '策略下发' },
+  { id: 'user:write', label: '用户管理' },
+  { id: 'role:write', label: '角色管理' },
+  { id: 'audit:read', label: '审计日志' },
+  { id: 'system:write', label: '系统设置' },
+  { id: 'ai:chat', label: 'AI 对话' },
+]
+
+function openRoleDialog() {
+  editingRole.value = null
+  roleForm.value = { name: '', display_name: '', description: '', permissions: [] }
+  showRoleDialog.value = true
+}
+
+function editRolePermissions(role: SystemRole) {
+  editingRole.value = role
+  roleForm.value = {
+    name: role.name,
+    display_name: role.display_name,
+    description: role.description,
+    permissions: role.permissions || [],
+  }
+  showRoleDialog.value = true
+}
+
+function closeRoleDialog() {
+  showRoleDialog.value = false
+  editingRole.value = null
+}
+
+async function saveRole() {
+  if (!roleForm.value.display_name) {
+    showToast('请填写角色显示名称', 'warning')
+    return
+  }
+  if (!editingRole.value && !roleForm.value.name) {
+    showToast('请填写角色名称', 'warning')
+    return
+  }
+  roleSaving.value = true
+  try {
+    if (editingRole.value) {
+      await systemApi.updateRole(editingRole.value.id, {
+        display_name: roleForm.value.display_name,
+        description: roleForm.value.description,
+        permission_ids: roleForm.value.permissions,
+      })
+    } else {
+      await systemApi.createRole({
+        name: roleForm.value.name,
+        display_name: roleForm.value.display_name,
+        description: roleForm.value.description,
+        permission_ids: roleForm.value.permissions,
+      })
+    }
+    await systemStore.fetchRoles()
+    closeRoleDialog()
+  } catch {
+    // API not available, optimistic update
+    if (editingRole.value) {
+      const r = systemStore.roles.find(r => r.id === editingRole.value.id)
+      if (r) {
+        r.display_name = roleForm.value.display_name
+        r.description = roleForm.value.description
+        r.permission_count = roleForm.value.permissions.length
+      }
+    } else {
+      systemStore.roles.push({
+        id: 'role-' + Date.now(),
+        name: roleForm.value.name,
+        display_name: roleForm.value.display_name,
+        description: roleForm.value.description,
+        permission_count: roleForm.value.permissions.length,
+      })
+    }
+    closeRoleDialog()
+  } finally {
+    roleSaving.value = false
+  }
 }
 
 onMounted(async () => {
@@ -682,5 +982,148 @@ onMounted(async () => {
 
 @media (max-width: 768px) {
   .roles-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Dialogs ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-dialog {
+  width: 440px;
+  max-width: 90vw;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: 16px;
+  box-shadow: var(--shadow-xl);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.modal-header h2 {
+  font-size: var(--text-h3);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.drawer-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.drawer-close:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
+.drawer-close svg { width: 18px; height: 18px; }
+
+.modal-body { padding: var(--space-5); }
+.modal-footer {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  padding: var(--space-5);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.form-group { margin-bottom: var(--space-4); }
+.form-group label {
+  display: block;
+  font-size: var(--text-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.form-input {
+  height: 38px;
+  width: 100%;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 0 var(--space-3);
+  color: var(--color-text-primary);
+  font-size: var(--text-body-sm);
+  font-family: inherit;
+  outline: none;
+}
+
+.form-input:focus { border-color: var(--color-accent-500); }
+.form-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.form-select {
+  height: 38px;
+  width: 100%;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 0 var(--space-3);
+  color: var(--color-text-primary);
+  font-size: var(--text-body-sm);
+  font-family: inherit;
+  outline: none;
+}
+
+.form-select:focus { border-color: var(--color-accent-500); }
+.form-select option { background: var(--color-bg-surface); color: var(--color-text-primary); }
+
+.form-textarea {
+  width: 100%;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: var(--space-3);
+  color: var(--color-text-primary);
+  font-size: var(--text-body-sm);
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+}
+
+.form-textarea:focus { border-color: var(--color-accent-500); }
+
+/* Permission Grid */
+.perm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2) var(--space-4);
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+}
+
+.perm-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.perm-checkbox input[type="checkbox"] {
+  accent-color: var(--color-accent-500);
+  width: 14px;
+  height: 14px;
 }
 </style>

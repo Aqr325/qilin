@@ -31,6 +31,20 @@ class ChangePasswordRequest(BaseModel):
     )
 
 
+class MFAToggleRequest(BaseModel):
+    """MFA开关请求."""
+
+    enabled: bool = Field(..., description="是否启用MFA")
+
+
+class UserProfileUpdateRequest(BaseModel):
+    """用户资料更新请求."""
+
+    display_name: Optional[str] = Field(None, min_length=1, max_length=64, description="显示名称")
+    email: Optional[str] = Field(None, max_length=256, description="邮箱")
+    phone: Optional[str] = Field(None, max_length=32, description="手机号")
+
+
 # ── Response ──
 
 class TokenPair(BaseModel):

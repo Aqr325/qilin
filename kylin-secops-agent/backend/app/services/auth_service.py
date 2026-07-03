@@ -164,8 +164,8 @@ async def refresh_token(db: AsyncSession, refresh_token_str: str) -> dict:
 
 async def logout(current_user: dict) -> None:
     """Logout current user."""
-    # In production, add token to blacklist in Redis
-    pass
+    # In production: add refresh_token to Redis blacklist
+    current_user["_logged_out_at"] = datetime.now(timezone.utc).isoformat()
 
 
 async def change_password(
@@ -222,6 +222,82 @@ async def get_user_permissions(db: AsyncSession, user_id: str) -> List[dict]:
                 "description": perm.description,
             })
     return all_perms
+
+
+async def update_user_profile(
+    db: AsyncSession,
+    user_id: str,
+    display_name: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+) -> dict:
+    """Update user profile information."""
+    from app.models.user import User
+    from uuid import UUID
+
+    stmt = select(User).where(User.id == UUID(user_id))
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    if display_name is not None:
+        user.display_name = display_name
+    if email is not None:
+        user.email = email
+    if phone is not None:
+        user.phone = phone
+
+    await db.commit()
+    await db.refresh(user)
+
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "display_name": user.display_name,
+        "email": user.email,
+        "phone": user.phone,
+        "is_active": user.is_active,
+        "mfa_enabled": user.mfa_enabled,
+        "last_login_at": user.last_login_at,
+        "roles": [],
+        "permissions": [],
+        "created_at": user.created_at,
+    }
+
+
+async def toggle_mfa(
+    db: AsyncSession,
+    user_id: str,
+    enabled: bool,
+) -> dict:
+    """Toggle MFA for a user."""
+    from app.models.user import User
+    from uuid import UUID
+
+    stmt = select(User).where(User.id == UUID(user_id))
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    user.mfa_enabled = enabled
+    await db.commit()
+    await db.refresh(user)
+
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "display_name": user.display_name,
+        "email": user.email,
+        "phone": user.phone,
+        "is_active": user.is_active,
+        "mfa_enabled": user.mfa_enabled,
+        "last_login_at": user.last_login_at,
+        "roles": [],
+        "permissions": [],
+        "created_at": user.created_at,
+    }
 
 
 async def _record_login_log(

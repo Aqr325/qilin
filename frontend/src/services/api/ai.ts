@@ -36,6 +36,46 @@ export interface ConversationDetail {
   updated_at?: string
 }
 
+export interface ModelConfig {
+  id: string
+  name: string
+  provider: string
+  model: string
+  api_url?: string
+  temperature: number
+  max_tokens: number
+  system_prompt?: string
+  is_active: boolean
+  is_default: boolean
+  has_api_key: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ModelConfigCreate {
+  name: string
+  provider: string
+  model: string
+  api_url?: string
+  api_key?: string
+  temperature?: number
+  max_tokens?: number
+  system_prompt?: string
+}
+
+export interface ModelConfigUpdate {
+  name?: string
+  provider?: string
+  model?: string
+  api_url?: string
+  api_key?: string
+  temperature?: number
+  max_tokens?: number
+  system_prompt?: string
+  is_active?: boolean
+  is_default?: boolean
+}
+
 export const aiApi = {
   query(question: string, contextAlertId?: string) {
     return api.post<AIQueryResponse>('/ai/query', {
@@ -71,6 +111,31 @@ export const aiApi = {
       rating,
       comment,
     })
+  },
+
+  // Model Config CRUD
+  listModelConfigs() {
+    return api.get<any>('/ai/model-configs')
+  },
+
+  getModelConfig(id: string) {
+    return api.get<ModelConfig>(`/ai/model-configs/${id}`)
+  },
+
+  createModelConfig(data: ModelConfigCreate) {
+    return api.post<ModelConfig>('/ai/model-configs', data)
+  },
+
+  updateModelConfig(id: string, data: ModelConfigUpdate) {
+    return api.put<ModelConfig>(`/ai/model-configs/${id}`, data)
+  },
+
+  deleteModelConfig(id: string) {
+    return api.delete<any>(`/ai/model-configs/${id}`)
+  },
+
+  setDefaultModelConfig(id: string) {
+    return api.put<ModelConfig>(`/ai/model-configs/${id}/set-default`)
   },
 }
 

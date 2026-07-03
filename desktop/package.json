@@ -37,7 +37,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "resources/icon.ico"
@@ -60,8 +62,13 @@
   "author": "Kylin SecOps Team",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^33.0.0",
+    "electron": "^33.4.11",
     "electron-builder": "^25.0.0"
   },
-  "keywords": ["kylin", "security", "secops", "desktop"]
+  "keywords": [
+    "kylin",
+    "security",
+    "secops",
+    "desktop"
+  ]
 }

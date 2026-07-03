@@ -58,3 +58,6 @@ nul
 
 # 旧版 electron-app 前端构建（冗余）
 electron-app/frontend/
+# Vite 前端构建产物
+desktop/frontend/assets/
+frontend/dist/

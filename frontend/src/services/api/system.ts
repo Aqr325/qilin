@@ -14,6 +14,15 @@ export interface SystemUser {
   created_at: string
 }
 
+export interface SystemRole {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  permission_count: number
+  permissions: string[]
+}
+
 export const systemApi = {
   users(params?: Record<string, string>) {
     const query = params ? '?' + new URLSearchParams(params).toString() : ''
@@ -36,8 +45,16 @@ export const systemApi = {
     return api.get<any[]>('/system/roles')
   },
 
+  roleDetail(id: string) {
+    return api.get<any>(`/system/roles/${id}`)
+  },
+
   createRole(data: any) {
     return api.post('/system/roles', data)
+  },
+
+  updateRole(id: string, data: any) {
+    return api.put(`/system/roles/${id}`, data)
   },
 
   auditLogs(params?: Record<string, string>) {

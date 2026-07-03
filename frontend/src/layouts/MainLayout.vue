@@ -11,9 +11,11 @@
       <TopBar />
       <main class="content-area">
         <router-view v-slot="{ Component }">
-          <transition name="page-fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
+          <keep-alive :exclude="['Dashboard']">
+            <transition name="page-fade" mode="out-in">
+              <component :is="Component" />
+            </transition>
+          </keep-alive>
         </router-view>
       </main>
     </div>

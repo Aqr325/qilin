@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import aiApi, { type AIQueryResponse, type ConversationSummary, type ConversationDetail } from '@/services/api/ai'
+import aiApi, { type AIQueryResponse, type ConversationSummary, type ConversationDetail, type ModelConfig } from '@/services/api/ai'
 
 export const useAIStore = defineStore('ai', () => {
   const conversations = ref<ConversationSummary[]>([])
@@ -9,6 +9,8 @@ export const useAIStore = defineStore('ai', () => {
   const loading = ref(false)
   const sending = ref(false)
   const error = ref('')
+  const modelConfigs = ref<ModelConfig[]>([])
+  const modelConfigLoading = ref(false)
 
   async function fetchConversations() {
     try {
@@ -94,6 +96,59 @@ export const useAIStore = defineStore('ai', () => {
     error.value = ''
   }
 
+  async function fetchModelConfigs() {
+    modelConfigLoading.value = true
+    try {
+      const res = await aiApi.listModelConfigs()
+      const items = (res as any).items || res
+      modelConfigs.value = Array.isArray(items) ? items : []
+    } catch {
+      modelConfigs.value = []
+    } finally {
+      modelConfigLoading.value = false
+    }
+  }
+
+  async function createModelConfig(data: any) {
+    try {
+      await aiApi.createModelConfig(data)
+      await fetchModelConfigs()
+    } catch (e: any) {
+      throw e
+    }
+  }
+
+  async function updateModelConfig(id: string, data: any) {
+    try {
+      await aiApi.updateModelConfig(id, data)
+      await fetchModelConfigs()
+    } catch (e: any) {
+      throw e
+    }
+  }
+
+  async function deleteModelConfig(id: string) {
+    try {
+      await aiApi.deleteModelConfig(id)
+      modelConfigs.value = modelConfigs.value.filter(c => c.id !== id)
+    } catch (e: any) {
+      throw e
+    }
+  }
+
+  async function setDefaultModelConfig(id: string) {
+    try {
+      await aiApi.setDefaultModelConfig(id)
+      await fetchModelConfigs()
+    } catch (e: any) {
+      throw e
+    }
+  }
+
+  function getDefaultModel() {
+    return modelConfigs.value.find(c => c.is_default && c.is_active) || modelConfigs.value[0] || null
+  }
+
   return {
     conversations,
     currentConversation,
@@ -101,11 +156,19 @@ export const useAIStore = defineStore('ai', () => {
     loading,
     sending,
     error,
+    modelConfigs,
+    modelConfigLoading,
     fetchConversations,
     loadConversation,
     sendMessage,
     deleteConversation,
     sendFeedback,
     newChat,
+    fetchModelConfigs,
+    createModelConfig,
+    updateModelConfig,
+    deleteModelConfig,
+    setDefaultModelConfig,
+    getDefaultModel,
   }
 })

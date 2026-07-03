@@ -11,7 +11,13 @@ export const usePoliciesStore = defineStore('policies', () => {
     loading.value = true
     try {
       const res = await api.get<any>('/policies')
-      policies.value = res.items || res
+      const items = res.items || res
+      // Map backend fields to frontend Policy type
+      policies.value = (items as Policy[]).map(p => ({
+        ...p,
+        created_by: p.created_by || (p.created_by_name ? { id: '', display_name: p.created_by_name } : { id: '', display_name: '系统' }),
+        enabled: p.enabled !== undefined ? p.enabled : (p.status === 'enabled'),
+      }))
     } catch {
       policies.value = getMockPolicies()
     } finally {

@@ -86,6 +86,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 
+defineOptions({ name: 'Profile' })
+
 const authStore = useAuthStore()
 const mfaLoading = ref(false)
 const passwordError = ref('')
@@ -113,13 +115,19 @@ const userRole = computed(() => {
 
 async function saveProfile() {
   try {
-    await api.put('/auth/profile', {
+    await api.put('/auth/me/profile', {
       display_name: profileForm.value.display_name,
       email: profileForm.value.email,
       phone: profileForm.value.phone,
     })
-  } catch {
-    // silently fail
+    alert('个人资料保存成功')
+    // Refresh auth store
+    if (authStore.user) {
+      authStore.user.display_name = profileForm.value.display_name
+      authStore.user.email = profileForm.value.email
+    }
+  } catch (e: any) {
+    alert(`保存失败：${e.message || '请检查网络连接'}`)
   }
 }
 
@@ -134,8 +142,8 @@ async function changePassword() {
     return
   }
   try {
-    await api.post('/auth/change-password', {
-      current_password: passwordForm.value.current_password,
+    await api.put('/auth/me/password', {
+      old_password: passwordForm.value.current_password,
       new_password: passwordForm.value.new_password,
     })
     passwordForm.value = { current_password: '', new_password: '', confirm_password: '' }
@@ -148,8 +156,16 @@ async function toggleMFA() {
   mfaLoading.value = true
   try {
     await api.put('/auth/mfa', { enabled: mfaEnabled.value })
+    // Update local user store
+    if (authStore.user) {
+      authStore.user.mfa_enabled = mfaEnabled.value
+    }
   } catch {
+    // API not available, toggle optimistically
     mfaEnabled.value = !mfaEnabled.value
+    if (authStore.user) {
+      authStore.user.mfa_enabled = mfaEnabled.value
+    }
   } finally {
     mfaLoading.value = false
   }

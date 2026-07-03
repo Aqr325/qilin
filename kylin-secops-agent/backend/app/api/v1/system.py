@@ -119,6 +119,17 @@ async def list_roles(
     return ApiResponse(data=result)
 
 
+@router.get("/roles/{role_id}", response_model=ApiResponse[RoleDetail])
+async def get_role(
+    role_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """角色详情."""
+    result = await system_service.get_role_detail(db, role_id)
+    return ApiResponse(data=result)
+
+
 @router.post("/roles", response_model=ApiResponse[RoleDetail], status_code=201)
 async def create_role(
     req: RoleCreate,
