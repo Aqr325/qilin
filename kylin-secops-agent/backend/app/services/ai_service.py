@@ -88,13 +88,21 @@ async def _call_model_api(
             return f"正在查询: {req.question}\n\n根据数据分析，暂未发现异常。"
 
         provider = model_config.provider.lower()
-        api_url = model_config.api_url
-        api_key = model_config.api_key
-        model_name = model_config.model
+        api_url = model_config.api_url or ""
+        api_key = model_config.api_key or ""
+        model_name = model_config.model or ""
+
+        # Validate required fields
+        if not api_url:
+            return "模型调用失败：API 地址未配置，请先到「模型配置」中填写 API 地址。"
+        if not model_name:
+            return "模型调用失败：模型标识未配置，请先到「模型配置」中填写模型标识。"
+        if api_key == "":
+            return "模型调用失败：API Key 未配置，请先到「模型配置」中填写 API Key。"
 
         if provider in ("openai", "custom"):
             import aiohttp
-            url = f"{api_url}/chat/completions"
+            url = api_url.rstrip("/") + "/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {
                 "model": model_name,
@@ -111,11 +119,16 @@ async def _call_model_api(
                         data = await resp.json()
                         return data.get("choices", [{}])[0].get("message", {}).get("content", "请求成功但未返回内容")
                     else:
-                        return f"模型调用失败 (HTTP {resp.status})"
+                        try:
+                            error_data = await resp.json()
+                            detail = error_data.get("error", {}).get("message", str(error_data))
+                        except Exception:
+                            detail = await resp.text() if resp.headers.get("content-type", "").startswith("text") else ""
+                        return f"模型调用失败 (HTTP {resp.status}): {detail}"
 
         elif provider == "anthropic":
             import aiohttp
-            url = f"{api_url}/messages"
+            url = api_url.rstrip("/") + "/messages"
             headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"}
             payload = {
                 "model": model_name,
@@ -128,11 +141,16 @@ async def _call_model_api(
                         data = await resp.json()
                         return data.get("content", [{}])[0].get("text", "请求成功但未返回内容")
                     else:
-                        return f"模型调用失败 (HTTP {resp.status})"
+                        try:
+                            error_data = await resp.json()
+                            detail = error_data.get("error", {}).get("message", str(error_data))
+                        except Exception:
+                            detail = await resp.text() if resp.headers.get("content-type", "").startswith("text") else ""
+                        return f"模型调用失败 (HTTP {resp.status}): {detail}"
 
         elif provider == "ollama":
             import aiohttp
-            url = f"{api_url}/api/chat"
+            url = api_url.rstrip("/") + "/api/chat"
             payload = {
                 "model": model_name,
                 "messages": [
