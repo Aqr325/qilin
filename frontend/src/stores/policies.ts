@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Policy } from '@/types'
+import type { Policy, PaginatedResponse } from '@/types'
 import api from '@/services/api'
 
 export const usePoliciesStore = defineStore('policies', () => {
@@ -10,7 +10,7 @@ export const usePoliciesStore = defineStore('policies', () => {
   async function fetchPolicies() {
     loading.value = true
     try {
-      const res = await api.get<any>('/policies')
+      const res = await api.get<PaginatedResponse<Policy>>('/policies')
       const items = res.items || res
       // Map backend fields to frontend Policy type
       policies.value = (items as Policy[]).map(p => ({

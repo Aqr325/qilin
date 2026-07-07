@@ -300,7 +300,7 @@ async function batchAction(status: string) {
         alert.status_label = statusLabelMap[status] || status
       }
     }
-    alertsStore.selectedAlerts.value.clear()
+    (alertsStore.selectedAlerts as Set<string>).clear()
     await alertsStore.fetchStats()
   } catch {
     // API not available, optimistic update
@@ -314,7 +314,7 @@ async function batchAction(status: string) {
         alert.status_label = statusLabelMap[status] || status
       }
     }
-    alertsStore.selectedAlerts.value.clear()
+    (alertsStore.selectedAlerts as Set<string>).clear()
   }
 }
 

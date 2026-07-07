@@ -5,13 +5,41 @@ from typing import List, Optional
 
 from fastapi import Depends, Header, HTTPException, Query, Request, status
 from jose import JWTError
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.models.agent import Agent
 from app.models.user import User, Role, Permission
+
+
+async def validate_agent_token(
+    db: AsyncSession, token: str
+) -> Optional[dict]:
+    """Validate an agent token against the agents table credential field.
+
+    Looks up the agent whose ``credential`` matches the given token and
+    returns an identity dict suitable for downstream authorization logic.
+    Returns ``None`` when no matching agent is found.
+    """
+    result = await db.execute(
+        text(
+            "SELECT id, agent_id, hostname FROM agents "
+            "WHERE credential = :token AND is_deleted = false"
+        ).bindparams(token=token)
+    )
+    row = result.fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "is_agent": True,
+        "agent_id": str(row.id),
+        "username": row.hostname,
+    }
 
 
 async def get_current_user(
@@ -22,8 +50,14 @@ async def get_current_user(
 ) -> dict:
     """Get current authenticated user from JWT token."""
     if x_agent_token:
-        # Agent token authentication
-        return {"is_agent": True, "agent_id": "agent", "username": "agent"}
+        # Agent token authentication — validate against stored credential
+        agent_identity = await validate_agent_token(db, x_agent_token)
+        if agent_identity is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid agent token",
+            )
+        return agent_identity
 
     if not authorization:
         raise HTTPException(

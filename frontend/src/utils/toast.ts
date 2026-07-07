@@ -9,6 +9,8 @@ interface ToastOption {
   duration?: number
 }
 
+type ToastType = 'success' | 'error' | 'warning' | 'info'
+
 let toastContainer: HTMLDivElement | null = null
 
 function ensureContainer() {
@@ -26,25 +28,26 @@ function ensureContainer() {
 }
 
 export function toast(option: string | ToastOption) {
-  const opts = typeof option === 'string' ? { message: option, type: 'info' } : option
+  const opts = typeof option === 'string' ? { message: option, type: 'info' as const } : option
   const { message, type = 'info', duration = 3000 } = opts
+  const toastType: ToastType = type as ToastType
 
   const el = document.createElement('div')
-  const colors = {
+  const colors: Record<ToastType, string> = {
     success: '#10b981', error: '#ef4444', warning: '#f59e0b', info: '#06b6d4'
   }
-  const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' }
+  const icons: Record<ToastType, string> = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' }
 
-  el.className = `toast toast-${type}`
+  el.className = `toast toast-${toastType}`
   el.style.cssText = `
     display: flex; align-items: center; gap: 10px;
     padding: 12px 16px; border-radius: 8px;
     background: rgba(15, 23, 42, 0.95); color: #e2e8f0;
-    font-size: 13px; border-left: 3px solid ${colors[type]};
+    font-size: 13px; border-left: 3px solid ${colors[toastType]};
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     animation: toast-in 0.25s ease;
   `
-  el.innerHTML = `<span style="color:${colors[type]};font-weight:bold">${icons[type]}</span><span>${message}</span>`
+  el.innerHTML = `<span style="color:${colors[toastType]};font-weight:bold">${icons[toastType]}</span><span>${message}</span>`
 
   ensureContainer().appendChild(el)
   setTimeout(() => {

@@ -189,7 +189,7 @@ import { ref, onMounted } from 'vue'
 import { usePoliciesStore } from '@/stores/policies'
 import { policiesApi } from '@/services/api/policies'
 import { showToast } from '@/utils/toast'
-import type { Policy } from '@/types'
+import type { Policy, PolicyType } from '@/types'
 
 defineOptions({ name: 'Policies' })
 
@@ -277,7 +277,7 @@ async function validateRules() {
       // If not valid JSON, treat as YAML-like text and do basic validation
       rules = null
     }
-    const res = await policiesApi.validate({ rules })
+    const res = (await policiesApi.validate({ rules })) as { valid: boolean; error?: string }
     if (res.valid) {
       showToast('策略语法校验通过', 'success')
     } else {
@@ -332,12 +332,12 @@ async function savePolicy() {
   const payload = {
     name: editorForm.value.name,
     description: editorForm.value.description,
-    policy_type: editorForm.value.policy_type,
+    policy_type: editorForm.value.policy_type as PolicyType,
     priority: editorForm.value.priority,
     target_type: editorForm.value.target_type,
     target_value: editorForm.value.target_type === 'all' ? [] : [],
     rules,
-    effective_start: editorForm.value.effective_start || null,
+    effective_start: editorForm.value.effective_start || undefined,
   }
 
   try {
@@ -353,13 +353,13 @@ async function savePolicy() {
   } catch {
     // API not available, try optimistic update with mock
     if (editingPolicy.value) {
-      const idx = policiesStore.policies.findIndex(p => p.id === editingPolicy.value.id)
+      const idx = policiesStore.policies.findIndex(p => p.id === editingPolicy.value!.id)
       if (idx >= 0) {
         policiesStore.policies[idx] = {
           ...policiesStore.policies[idx],
           name: editorForm.value.name,
           description: editorForm.value.description,
-          policy_type: editorForm.value.policy_type,
+          policy_type: editorForm.value.policy_type as PolicyType,
           priority: editorForm.value.priority,
           rules,
         }
@@ -369,7 +369,7 @@ async function savePolicy() {
         id: 'policy-' + Date.now(),
         name: editorForm.value.name,
         description: editorForm.value.description || '',
-        policy_type: editorForm.value.policy_type,
+        policy_type: editorForm.value.policy_type as PolicyType,
         policy_type_label: policyTypeLabel(editorForm.value.policy_type),
         version: 1,
         status: 'draft',

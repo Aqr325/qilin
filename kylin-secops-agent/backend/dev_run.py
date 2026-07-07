@@ -91,7 +91,7 @@ if __name__ == "__main__":
     print("  [Start] API: http://localhost:8000")
     print("  [Start] Docs: http://localhost:8000/docs")
     print()
-    print("  [Login] admin / admin123")
+    print("  [Login] admin / (auto-generated or KYLIN_SEED_PASSWORD env var)")
     print()
 
     uvicorn.run(

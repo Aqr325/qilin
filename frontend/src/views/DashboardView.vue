@@ -352,9 +352,9 @@ function initCharts() {
                 padding: 14,
                 usePointStyle: true,
                 pointStyle: 'circle',
-                generateLabels: function(chart) {
+                generateLabels: function(chart: any) {
                   const data = chart.data
-                  return data.labels.map((label, i) => ({
+                  return data.labels.map((label: string, i: number) => ({
                     text: `${label} ${data.datasets[0].data[i]}`,
                     fillStyle: data.datasets[0].backgroundColor[i],
                     strokeStyle: data.datasets[0].backgroundColor[i],

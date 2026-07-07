@@ -104,11 +104,11 @@ def build_all():
     print()
     print('  📂 输出目录:')
     print(f'     Frontend: {dest}')
-    print(f'     Launcher: {os.path.join(DESKTOP_DIR, "dist", "KylinSecOps.exe")}')
+    print(f'     交付程序: {os.path.join(DESKTOP_DIR, "..", "麒麟OS安全运维_桌面程序", "麒麟OS安全运维.exe")}')
     print()
     print('  🚀 运行方式:')
-    print('     1. 双击 desktop/启动桌面版.bat')
-    print('     2. 或运行 dist/KylinSecOps.exe')
+    print('     1. 双击 麒麟OS安全运维_桌面程序/麒麟OS安全运维.exe')
+    print('     2. 或双击 麒麟OS安全运维_桌面程序/启动桌面版.bat')
     print('=' * 60)
 
     return True

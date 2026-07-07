@@ -1,11 +1,34 @@
 import api from '@/services/api'
 
+export interface AISuggestResponse {
+  actions: { label: string; action: string }[]
+  context: { key: string; value: unknown }[]
+}
+
+export interface AIPlaybookResponse {
+  playbook: string
+  steps: { step: number; title: string; description: string; command?: string }[]
+  confidence: number
+}
+
+export interface ConversationListResponse {
+  conversations: ConversationSummary[]
+  total: number
+  page: number
+  size: number
+}
+
+export interface AIFeedbackResponse {
+  accepted: boolean
+  feedback_id: string
+}
+
 export interface AIQueryResponse {
   conversation_id: string
   message_id: string
   answer: string
   confidence: number
-  data_sources: { label: string; data: any }[]
+  data_sources: { label: string; data: unknown }[]
   suggested_actions: { label: string; action: string }[]
   token_usage: number
   processing_time_ms: number
@@ -26,7 +49,7 @@ export interface ConversationDetail {
   id: string
   title?: string
   messages: { role: string; content: string; created_at?: string }[]
-  context?: any
+  context?: Record<string, unknown>
   related_alert_id?: string
   feedback_score?: number
   token_usage: number
@@ -48,6 +71,7 @@ export interface ModelConfig {
   is_active: boolean
   is_default: boolean
   has_api_key: boolean
+  api_key?: string
   created_at?: string
   updated_at?: string
 }
@@ -85,15 +109,15 @@ export const aiApi = {
   },
 
   suggest(alertId: string) {
-    return api.post<any>('/ai/suggest', { alert_id: alertId })
+    return api.post<AISuggestResponse>('/ai/suggest', { alert_id: alertId })
   },
 
   playbook(alertIds: string[], scenario?: string) {
-    return api.post<any>('/ai/playbook', { alert_ids: alertIds, scenario })
+    return api.post<AIPlaybookResponse>('/ai/playbook', { alert_ids: alertIds, scenario })
   },
 
   conversations(page = 1, size = 20) {
-    return api.get<any>(`/ai/conversations?page=${page}&size=${size}`)
+    return api.get<ConversationListResponse>(`/ai/conversations?page=${page}&size=${size}`)
   },
 
   conversationDetail(convId: string) {
@@ -101,11 +125,11 @@ export const aiApi = {
   },
 
   deleteConversation(convId: string) {
-    return api.delete<any>(`/ai/conversations/${convId}`)
+    return api.delete<AIFeedbackResponse>(`/ai/conversations/${convId}`)
   },
 
   feedback(conversationId: string, messageId: string, rating: number, comment?: string) {
-    return api.post<any>('/ai/feedback', {
+    return api.post<AIFeedbackResponse>('/ai/feedback', {
       conversation_id: conversationId,
       message_id: messageId,
       rating,
@@ -115,7 +139,7 @@ export const aiApi = {
 
   // Model Config CRUD
   listModelConfigs() {
-    return api.get<any>('/ai/model-configs')
+    return api.get<ModelConfig[]>('/ai/model-configs')
   },
 
   getModelConfig(id: string) {
@@ -131,7 +155,7 @@ export const aiApi = {
   },
 
   deleteModelConfig(id: string) {
-    return api.delete<any>(`/ai/model-configs/${id}`)
+    return api.delete<AIFeedbackResponse>(`/ai/model-configs/${id}`)
   },
 
   setDefaultModelConfig(id: string) {

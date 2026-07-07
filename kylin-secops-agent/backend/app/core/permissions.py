@@ -1,5 +1,9 @@
 """RBAC permissions system."""
 
+import logging
+import os
+import secrets
+
 from enum import Enum
 from functools import wraps
 from typing import Callable, List, Optional
@@ -8,6 +12,8 @@ from fastapi import Depends, HTTPException, status
 from jose import JWTError
 
 from app.core.security import decode_token
+
+logger = logging.getLogger(__name__)
 
 
 # ── Permission Codes ──
@@ -52,36 +58,73 @@ class Permission(str, Enum):
 
 
 # ── Role Definitions ──
+# Passwords are None by default — resolved at seed time via _resolve_seed_password().
+# This prevents plaintext passwords from being committed to source control.
 DEFAULT_SEED_USERS = [
     {
         "username": "admin",
-        "password": "admin123",
+        "password": None,  # Resolved at seed time
         "display_name": "系统管理员",
         "email": "admin@kylin-secops.local",
         "role": "admin",
     },
     {
         "username": "operator",
-        "password": "operator123",
+        "password": None,  # Resolved at seed time
         "display_name": "运维操作员",
         "email": "operator@kylin-secops.local",
         "role": "operator",
     },
     {
         "username": "auditor",
-        "password": "auditor123",
+        "password": None,  # Resolved at seed time
         "display_name": "安全审计员",
         "email": "auditor@kylin-secops.local",
         "role": "auditor",
     },
     {
         "username": "viewer",
-        "password": "viewer123",
+        "password": None,  # Resolved at seed time
         "display_name": "查看者",
         "email": "viewer@kylin-secops.local",
         "role": "readonly",
     },
 ]
+
+
+def _resolve_seed_password(username: str) -> str:
+    """Resolve a seed user's password at runtime.
+
+    Priority:
+    1. Environment variable KYLIN_SEED_PASSWORD (single shared password for all seed users)
+    2. Per-user env var KYLIN_SEED_<USERNAME>_PASSWORD (e.g. KYLIN_SEED_ADMIN_PASSWORD)
+    3. Auto-generated strong random password (24 chars URL-safe)
+
+    In dev/debug mode, generated passwords are logged to stdout for first-time setup.
+    """
+    # 1. Global shared seed password
+    global_pwd = os.environ.get("KYLIN_SEED_PASSWORD", "").strip()
+    if global_pwd:
+        return global_pwd
+
+    # 2. Per-user seed password
+    per_user_key = f"KYLIN_SEED_{username.upper()}_PASSWORD"
+    per_user_pwd = os.environ.get(per_user_key, "").strip()
+    if per_user_pwd:
+        return per_user_pwd
+
+    # 3. Auto-generated strong random password (24 chars)
+    generated = secrets.token_urlsafe(24)
+    debug = os.environ.get("DEBUG", "").lower() == "true"
+    if debug:
+        logger.warning(
+            "⚠️  Seed user '%s': generated random password. "
+            "Set KYLIN_SEED_PASSWORD or %s to override.",
+            username,
+            per_user_key,
+        )
+        logger.warning("⚠️  Password: %s", generated)
+    return generated
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
     "admin": [p.value for p in Permission],

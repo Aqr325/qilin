@@ -340,7 +340,13 @@ for rname, pids in rp_map.items():
 print(f"  Role-Permissions: {rp_count}")
 
 # ── Users ──
-pwd = bcrypt.hashpw(b"admin123", bcrypt.gensalt(4)).decode()
+# Generate bcrypt password hash — use env var or auto-generate strong random password
+_seed_pwd = os.environ.get("KYLIN_SEED_PASSWORD", "").strip()
+if not _seed_pwd:
+    import secrets
+    _seed_pwd = secrets.token_urlsafe(24)
+    print("⚠️  KYLIN_SEED_PASSWORD not set, using auto-generated random password")
+pwd = bcrypt.hashpw(_seed_pwd.encode("utf-8"), bcrypt.gensalt(4)).decode()
 user_ids = {}
 for uname, email, dname, role_name, active, locked, attempts in [
     ("admin","admin@kylin.local","系统管理员","admin",1,0,0),

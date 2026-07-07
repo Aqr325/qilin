@@ -10,7 +10,7 @@ services:
     environment:
       POSTGRES_DB: kylin_secops
       POSTGRES_USER: kylin_secops
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-kylin_secops_2026}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     ports:
       - "5432:5432"
     healthcheck:
@@ -23,7 +23,7 @@ services:
     image: redis:7-alpine
     container_name: kylin-secops-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-kylin_redis_2026}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     volumes:
       - redisdata:/data
     ports:
@@ -46,12 +46,12 @@ services:
     environment:
       DB_HOST: postgres
       DB_USER: kylin_secops
-      DB_PASSWORD: ${DB_PASSWORD:-kylin_secops_2026}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       DB_NAME: kylin_secops
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-kylin_redis_2026}
-      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
-      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
       LOG_LEVEL: INFO
     ports:
       - "8000:8000"
@@ -73,12 +73,12 @@ services:
     environment:
       DB_HOST: postgres
       DB_USER: kylin_secops
-      DB_PASSWORD: ${DB_PASSWORD:-kylin_secops_2026}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       DB_NAME: kylin_secops
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-kylin_redis_2026}
-      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
-      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
       LOG_LEVEL: INFO
     depends_on:
       api:
@@ -97,8 +97,8 @@ services:
       - ./app:/app/app
     environment:
       REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-kylin_redis_2026}
-      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-kylin_redis_2026}@redis:6379/1
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
     depends_on:
       - redis
 
