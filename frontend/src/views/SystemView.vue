@@ -384,8 +384,10 @@ async function saveSettings() {
   settingsLoading.value = true
   try {
     await systemApi.updateSettings(settingsForm.value)
+    showToast('系统设置已保存', 'success')
   } catch {
-    // silently fail
+    // Surface the failure so the user knows the edit was not persisted
+    showToast('系统设置保存失败，请检查网络或后端服务', 'error')
   } finally {
     settingsLoading.value = false
   }

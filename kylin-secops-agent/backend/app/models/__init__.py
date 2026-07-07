@@ -2,7 +2,7 @@
 
 from app.models.base import Base, SoftDeleteMixin, TimestampMixin
 from app.models.user import User, Role, Permission, user_roles, role_permissions
-from app.models.agent import Agent, AgentHeartbeat
+from app.models.agent import Agent, AgentHeartbeat, AgentTask
 from app.models.alert import Alert, AlertStatusHistory
 from app.models.policy import Policy, PolicyVersion, PolicyTarget
 from app.models.audit import AuditLog, LoginLog
@@ -20,6 +20,7 @@ __all__ = [
     "role_permissions",
     "Agent",
     "AgentHeartbeat",
+    "AgentTask",
     "Alert",
     "AlertStatusHistory",
     "Policy",

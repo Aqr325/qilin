@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.agent import Agent, AgentHeartbeat
+from app.models.agent import Agent, AgentHeartbeat, AgentTask as AgentTaskModel
 from app.repositories.agent_repo import AgentRepository, AgentHeartbeatRepository
 from app.schemas.agent import (
     AgentDetail,
@@ -186,15 +186,15 @@ async def get_agent_config(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    # Load deployed policies for this agent
-    from app.models.policy import Policy, PolicyDeployStatus
+    # Load deployed policies for this agent (关联 PolicyTarget 下发记录)
+    from app.models.policy import Policy, PolicyTarget
     from sqlalchemy import select
     stmt = (
-        select(Policy, PolicyDeployStatus)
-        .join(PolicyDeployStatus, Policy.id == PolicyDeployStatus.policy_id)
+        select(Policy, PolicyTarget)
+        .join(PolicyTarget, Policy.id == PolicyTarget.policy_id)
         .where(
-            PolicyDeployStatus.agent_id == agent.id,
-            PolicyDeployStatus.status == "deployed",
+            PolicyTarget.agent_id == agent.agent_id,
+            PolicyTarget.status == "deployed",
         )
     )
     results = await db.execute(stmt)
@@ -203,9 +203,9 @@ async def get_agent_config(
         policies.append({
             "id": str(policy.id),
             "name": policy.name,
-            "type": policy.type,
+            "type": policy.policy_type,
             "rules": policy.rules,
-            "config_version": deploy.config_version,
+            "config_version": deploy.deployed_version,
         })
 
     return {
@@ -404,17 +404,48 @@ async def upgrade_agents(
     req: dict,
     operator: str,
 ) -> dict:
-    """Upgrade agents."""
+    """升级Agent：持久化升级任务并标记Agent为 upgrading，便于追踪与心跳对账。"""
+    agent_repo = AgentRepository(db)
     agent_ids = req.get("agent_ids", [])
     target_version = req.get("target_version", "")
-    if not agent_ids:
-        return {"task_id": str(uuid.uuid4()), "scheduled_count": 0, "error": "No agents selected"}
+    package_url = req.get("package_url", "")
 
-    # In production: create upgrade tasks and notify agents via WebSocket
+    if not agent_ids:
+        return {
+            "task_id": "",
+            "scheduled_count": 0,
+            "target_version": target_version,
+            "tasks": [],
+        }
+
+    tasks: List[AgentTaskModel] = []
+    for aid in agent_ids:
+        agent = await agent_repo.get_by_agent_id(aid)
+        from_version = agent.agent_version if agent else None
+        if agent:
+            # 标记为升级中；Agent下次心跳上报会自动恢复为 online
+            agent.status = "upgrading"
+        task = AgentTaskModel(
+            agent_id=aid,
+            task_type="upgrade",
+            status="pending",
+            params={
+                "from_version": from_version,
+                "target_version": target_version,
+                "package_url": package_url,
+            },
+            created_by=str(operator) if operator else None,
+        )
+        db.add(task)
+        tasks.append(task)
+
+    await db.flush()
+    task_ids = [t.id for t in tasks]
     return {
-        "task_id": str(uuid.uuid4()),
-        "scheduled_count": len(agent_ids),
+        "task_id": task_ids[0] if task_ids else "",
+        "scheduled_count": len(tasks),
         "target_version": target_version,
+        "tasks": task_ids,
     }
 
 
@@ -422,8 +453,27 @@ async def get_upgrade_history(
     db: AsyncSession,
     agent_id: str,
 ) -> List[UpgradeRecord]:
-    """Get upgrade history."""
-    return []
+    """获取Agent升级历史（来自 agent_tasks）。"""
+    from sqlalchemy import select, desc
+
+    result = await db.execute(
+        select(AgentTaskModel)
+        .where(AgentTaskModel.agent_id == agent_id, AgentTaskModel.task_type == "upgrade")
+        .order_by(desc(AgentTaskModel.created_at))
+    )
+    rows = result.scalars().all()
+    return [
+        UpgradeRecord(
+            task_id=r.id,
+            agent_id=r.agent_id,
+            from_version=(r.params or {}).get("from_version"),
+            to_version=(r.params or {}).get("target_version"),
+            status=r.status,
+            created_at=r.created_at,
+            completed_at=r.completed_at,
+        )
+        for r in rows
+    ]
 
 
 async def restart_agent(
@@ -431,9 +481,19 @@ async def restart_agent(
     agent_id: str,
     operator: str,
 ) -> dict:
-    """Restart agent."""
-    # In production: send restart command via WebSocket
-    return {"task_id": str(uuid.uuid4()), "agent_id": agent_id}
+    """重启Agent：持久化重启任务，便于追踪。"""
+    agent_repo = AgentRepository(db)
+    agent = await agent_repo.get_by_agent_id(agent_id)
+    task = AgentTaskModel(
+        agent_id=agent_id,
+        task_type="restart",
+        status="pending",
+        params={},
+        created_by=str(operator) if operator else None,
+    )
+    db.add(task)
+    await db.flush()
+    return {"task_id": task.id, "agent_id": agent_id}
 
 
 async def get_agent_tasks(
@@ -442,5 +502,24 @@ async def get_agent_tasks(
     status: Optional[str] = None,
     task_type: Optional[str] = None,
 ) -> List[AgentTask]:
-    """Get agent tasks."""
-    return []
+    """获取Agent任务列表（来自 agent_tasks）。"""
+    from sqlalchemy import select, desc
+
+    stmt = select(AgentTaskModel).where(AgentTaskModel.agent_id == agent_id)
+    if status:
+        stmt = stmt.where(AgentTaskModel.status == status)
+    if task_type:
+        stmt = stmt.where(AgentTaskModel.task_type == task_type)
+    stmt = stmt.order_by(desc(AgentTaskModel.created_at))
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+    return [
+        AgentTask(
+            task_id=r.id,
+            type=r.task_type,
+            status=r.status,
+            created_at=r.created_at,
+            params=r.params,
+        )
+        for r in rows
+    ]

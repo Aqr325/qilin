@@ -125,6 +125,7 @@ async function saveProfile() {
     if (authStore.user) {
       authStore.user.display_name = profileForm.value.display_name
       authStore.user.email = profileForm.value.email
+      authStore.user.phone = profileForm.value.phone
     }
   } catch (e: any) {
     alert(`保存失败：${e.message || '请检查网络连接'}`)

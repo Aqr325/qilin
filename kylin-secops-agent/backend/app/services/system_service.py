@@ -81,6 +81,8 @@ async def create_user(
             )
 
     await db.flush()
+    # 角色通过原始SQL写入，需刷新关系集合，否则返回的 role_list 为空
+    await db.refresh(user, ['roles'])
     return await _user_to_detail(user)
 
 

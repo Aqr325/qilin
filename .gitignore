@@ -34,6 +34,9 @@ temp/
 麒麟OS安全智能运维Agent_桌面版交付/
 麒麟OS-安全智能运维Agent-设计原型包/
 
+# 发布包 zip（作为 GitHub Release 附件，不入库）
+麒麟OS安全运维_桌面程序-v*.zip
+
 # 开发环境
 *.db
 *.sqlite3
