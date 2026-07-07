@@ -134,7 +134,7 @@ async def _seed_defaults():
     import uuid as _uuid
     from datetime import datetime, timezone
 
-    from app.core.permissions import Permission as PermissionEnum, DEFAULT_SEED_USERS, ROLE_PERMISSIONS
+    from app.core.permissions import Permission as PermissionEnum, DEFAULT_SEED_USERS, ROLE_PERMISSIONS, _resolve_seed_password
     from app.core.security import hash_password
     from app.models.user import User, Role, Permission as PermissionModel
     from app.core.database import async_session_factory
@@ -187,7 +187,7 @@ async def _seed_defaults():
                 continue
             session.add(User(
                 id=_uuid.uuid4(), username=su["username"],
-                password_hash=hash_password(su["password"]),
+                password_hash=hash_password(_resolve_seed_password(su["username"])),
                 display_name=su["display_name"],
                 email=su["email"],
                 is_active=True,
@@ -253,7 +253,7 @@ if __name__ == "__main__":
     print()
     print(f"  [API] http://localhost:8000")
     print(f"  [Docs] http://localhost:8000/docs")
-    print(f"  [Login] admin / admin123")
+    print(f"  [Login] admin / (auto-generated or KYLIN_SEED_PASSWORD env var)")
     print()
 
     uvicorn.run(

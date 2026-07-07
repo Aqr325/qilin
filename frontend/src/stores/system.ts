@@ -27,7 +27,7 @@ export interface SystemRole {
 export const useSystemStore = defineStore('system', () => {
   const users = ref<SystemUser[]>([])
   const roles = ref<SystemRole[]>([])
-  const auditLogs = ref<any[]>([])
+  const auditLogs = ref<AuditLog[]>([])
   const loading = ref(false)
 
   async function fetchUsers() {
@@ -103,7 +103,7 @@ function getMockRoles(): SystemRole[] {
   ]
 }
 
-function getMockAuditLogs(): any[] {
+function getMockAuditLogs(): AuditLog[] {
   return [
     { id: 1, user_id: 'user-1', username: 'admin', action: 'update', resource_type: 'policy', resource_id: 'policy-03', resource_name: '网络访问控制', detail: { before: { enabled: false }, after: { enabled: true } }, ip_address: '192.168.1.100', result: 'success', created_at: '2026-06-23T19:30:00Z' },
     { id: 2, user_id: 'user-2', username: 'operator', action: 'update', resource_type: 'alert', resource_id: 'alert-003', resource_name: '异常网络连接', detail: { status_change: 'new → acknowledged' }, ip_address: '192.168.1.101', result: 'success', created_at: '2026-06-23T19:25:00Z' },

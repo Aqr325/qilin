@@ -497,7 +497,7 @@ async function saveUser() {
   } catch {
     // API not available, optimistic update
     if (editingUser.value) {
-      const u = systemStore.users.find(u => u.id === editingUser.value.id)
+      const u = systemStore.users.find(u => u.id === editingUser.value!.id)
       if (u) {
         u.display_name = userForm.value.display_name
         u.email = userForm.value.email
@@ -618,7 +618,7 @@ async function saveRole() {
   } catch {
     // API not available, optimistic update
     if (editingRole.value) {
-      const r = systemStore.roles.find(r => r.id === editingRole.value.id)
+      const r = systemStore.roles.find(r => r.id === editingRole.value!.id)
       if (r) {
         r.display_name = roleForm.value.display_name
         r.description = roleForm.value.description
@@ -631,6 +631,7 @@ async function saveRole() {
         display_name: roleForm.value.display_name,
         description: roleForm.value.description,
         permission_count: roleForm.value.permissions.length,
+        permissions: roleForm.value.permissions,
       })
     }
     closeRoleDialog()

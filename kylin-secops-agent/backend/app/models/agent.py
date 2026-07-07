@@ -33,6 +33,9 @@ class Agent(Base, TimestampMixin, SoftDeleteMixin):
     agent_id: Mapped[str] = mapped_column(
         String(128), unique=True, nullable=False, index=True, comment="Agent标识"
     )
+    credential: Mapped[str] = mapped_column(
+        String(128), unique=True, nullable=False, index=True, comment="Agent认证凭据"
+    )
     hostname: Mapped[str] = mapped_column(
         String(256), nullable=False, comment="主机名"
     )

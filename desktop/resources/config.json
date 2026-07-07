@@ -1,4 +1,5 @@
 {
+    "seed_password": "KylinSecOps@2026",
     "backend": {
         "host": "127.0.0.1",
         "port": 8001,

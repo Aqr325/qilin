@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_pagination
 from app.core.database import get_db
+from app.core.permissions import Permission, require_permission
 from app.schemas.common import ApiResponse, Page
 from app.schemas.system import (
     AuditLogFilterParams,
@@ -34,7 +35,7 @@ router = APIRouter(prefix="/system", tags=["系统管理"])
 @router.post("/users", response_model=ApiResponse[UserDetail], status_code=201)
 async def create_user(
     req: UserCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """创建用户."""
@@ -48,7 +49,7 @@ async def list_users(
     role: str = Query(None),
     status: str = Query(None),
     keyword: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """用户列表."""
@@ -62,7 +63,7 @@ async def list_users(
 @router.get("/users/{user_id}", response_model=ApiResponse[UserDetail])
 async def get_user(
     user_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """用户详情."""
@@ -74,7 +75,7 @@ async def get_user(
 async def update_user(
     user_id: str,
     req: UserUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """更新用户."""
@@ -85,7 +86,7 @@ async def update_user(
 @router.delete("/users/{user_id}", response_model=ApiResponse)
 async def delete_user(
     user_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """删除用户."""
@@ -97,7 +98,7 @@ async def delete_user(
 async def toggle_user_status(
     user_id: str,
     req: UserStatusUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """启用/禁用用户."""
@@ -111,7 +112,7 @@ async def toggle_user_status(
 
 @router.get("/roles", response_model=ApiResponse[list[RoleDetail]])
 async def list_roles(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """角色列表."""
@@ -122,7 +123,7 @@ async def list_roles(
 @router.get("/roles/{role_id}", response_model=ApiResponse[RoleDetail])
 async def get_role(
     role_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """角色详情."""
@@ -133,7 +134,7 @@ async def get_role(
 @router.post("/roles", response_model=ApiResponse[RoleDetail], status_code=201)
 async def create_role(
     req: RoleCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """创建角色."""
@@ -145,7 +146,7 @@ async def create_role(
 async def update_role(
     role_id: str,
     req: RoleUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """更新角色权限."""
@@ -156,7 +157,7 @@ async def update_role(
 @router.delete("/roles/{role_id}", response_model=ApiResponse)
 async def delete_role(
     role_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """删除角色."""
@@ -166,7 +167,7 @@ async def delete_role(
 
 @router.get("/permissions", response_model=ApiResponse[list[dict]])
 async def list_permissions(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """权限清单."""
@@ -184,7 +185,7 @@ async def list_login_logs(
     ip_address: str = Query(None),
     start_time: str = Query(None),
     end_time: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AUDIT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """登录日志."""
@@ -200,7 +201,7 @@ async def list_login_logs(
 async def update_login_log(
     log_id: int,
     req: LoginLogUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """更新登录日志状态."""
@@ -216,7 +217,7 @@ async def list_audit_logs(
     resource_type: str = Query(None),
     start_time: str = Query(None),
     end_time: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AUDIT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """操作审计日志."""
@@ -231,7 +232,7 @@ async def list_audit_logs(
 @router.get("/audit-logs/stats", response_model=ApiResponse[AuditStats])
 async def audit_logs_stats(
     time_range: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AUDIT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """审计统计."""
@@ -243,7 +244,7 @@ async def audit_logs_stats(
 
 @router.get("/settings", response_model=ApiResponse[SystemSettings])
 async def get_settings(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """系统设置."""
@@ -254,7 +255,7 @@ async def get_settings(
 @router.put("/settings", response_model=ApiResponse[SystemSettings])
 async def update_settings(
     req: SystemSettingsUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """更新系统设置."""

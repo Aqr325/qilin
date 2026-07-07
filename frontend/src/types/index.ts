@@ -46,7 +46,6 @@ export interface Agent {
   status: AgentStatus
   cpu_usage?: number
   memory_usage?: number
-  memory_total: number
   total_memory?: number
   disk_usage?: number
   cpu_cores: number
@@ -101,11 +100,12 @@ export interface Policy {
   status_label: string
   target_type: string
   target_value: string[]
-  rules: any
+  rules: string | string[] | Record<string, unknown> | null
   priority: number
   effective_start?: string
   effective_end?: string
   created_by: { id: string; display_name: string }
+  created_by_name?: string
   created_at: string
   updated_at: string
   enabled: boolean
@@ -119,7 +119,7 @@ export type PolicyType =
   | 'vulnerability_scan'
   | 'log_audit'
 
-export type PolicyStatus = 'draft' | 'enabled' | 'disabled' | 'archived'
+export type PolicyStatus = 'draft' | 'enabled' | 'disabled' | 'archived' | 'deploying'
 
 export interface AuditLog {
   id: number
@@ -129,10 +129,18 @@ export interface AuditLog {
   resource_type: string
   resource_id?: string
   resource_name?: string
-  detail: any
+  detail: Record<string, unknown>
   ip_address?: string
   result: string
   created_at: string
+}
+
+export interface AlertTrend {
+  date: string
+  critical: number
+  high: number
+  medium: number
+  low: number
 }
 
 export interface DashboardOverview {
@@ -147,7 +155,7 @@ export interface DashboardOverview {
   alerts_today: number
   resolved_today: number
   avg_response_time_hours: number | null
-  alert_trend: any | null
+  alert_trend: AlertTrend[] | null
   // Computed / derived by store to match template expectations
   active_agents?: number
   high_severity_alerts?: number
@@ -158,12 +166,23 @@ export interface DashboardOverview {
   health_trend_percent?: number
 }
 
-export interface AlertTrend {
-  date: string
-  critical: number
-  high: number
-  medium: number
-  low: number
+// Backend-only fields for DashboardOverview (separated from computed/derived fields)
+export interface DashboardOverviewBackend {
+  total_alerts: number
+  active_alerts: number
+  critical_alerts: number
+  resolved_alerts: number
+  total_agents: number
+  online_agents: number
+  offline_agents: number
+  active_policies: number
+  alerts_today: number
+  resolved_today: number
+  avg_response_time_hours: number | null
+  alert_trend: AlertTrend[] | null
+  high_alerts?: number
+  medium_alerts?: number
+  low_alerts?: number
 }
 
 export interface AgentHealthDistribution {

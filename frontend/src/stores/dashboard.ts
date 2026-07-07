@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { DashboardOverview, AlertTrend, AgentHealthDistribution } from '@/types'
+import type { DashboardOverview, DashboardOverviewBackend, AlertTrend, AgentHealthDistribution } from '@/types'
 import api from '@/services/api'
 
 export const useDashboardStore = defineStore('dashboard', () => {
@@ -28,15 +28,16 @@ export const useDashboardStore = defineStore('dashboard', () => {
   async function fetchOverview() {
     loading.value = true
     try {
-      const res = await api.get<DashboardOverview>('/dashboard/overview')
+      const res = await api.get<DashboardOverviewBackend>('/dashboard/overview')
       // Map backend fields to what the template expects
       overview.value = {
         ...res,
-        active_agents: res.online_agents ?? res.active_alerts ?? 0,
+        active_agents: res.online_agents ?? 0,
         high_severity_alerts: res.critical_alerts ?? 0,
         health_score: res.total_alerts > 0
           ? Math.round((1 - res.active_alerts / (res.total_alerts + res.active_alerts)) * 100)
           : 100,
+        // TODO: Replace hardcoded trend percentages with real comparison data
         alert_trend_percent: 12.5,
         agent_trend_percent: Math.round((res.online_agents / (res.total_agents || 1)) * 50),
         high_trend_percent: -8.7,
@@ -73,8 +74,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
         }
         alertTrend.value = labels.map(date => ({
           date: (() => {
+            // Robust date conversion: handle YYYY-MM-DD format
             const parts = date.split('-')
-            return parts.length >= 2 ? `${parts[1]}/${parts[2]}` : date
+            if (parts.length >= 3 && parts[1] && parts[2]) {
+              return `${parts[1]}/${parts[2]}`
+            }
+            return date
           })(),
           critical: buildMap('critical'),
           high: buildMap('high'),

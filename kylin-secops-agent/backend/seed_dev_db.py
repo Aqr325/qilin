@@ -38,8 +38,13 @@ if row and row[0] > 0:
     conn.close()
     exit(0)
 
-# Generate bcrypt password hash (backend uses passlib/CryptContext which wraps bcrypt)
-pwd = _bcrypt.hashpw(b"admin123", _bcrypt.gensalt(4)).decode()
+# Generate bcrypt password hash — use env var or auto-generate strong random password
+_seed_pwd = os.environ.get("KYLIN_SEED_PASSWORD", "").strip()
+if not _seed_pwd:
+    import secrets
+    _seed_pwd = secrets.token_urlsafe(24)
+    print("⚠️  KYLIN_SEED_PASSWORD not set, using auto-generated random password")
+pwd = _bcrypt.hashpw(_seed_pwd.encode("utf-8"), _bcrypt.gensalt(4)).decode()
 
 # Roles
 roles = [

@@ -43,6 +43,7 @@ async def process_heartbeat(
         # Auto-register unknown agents
         agent = Agent(
             agent_id=agent_id,
+            credential=f"kylin_agent_{uuid.uuid4().hex}",
             hostname=agent_id,
             ip_address=ip_address,
             os_version="unknown",
@@ -114,8 +115,10 @@ async def register_agent(
             detail=f"Agent {req.agent_id} already registered",
         )
 
+    credential = f"kylin_agent_{uuid.uuid4().hex}"
     agent = Agent(
         agent_id=req.agent_id,
+        credential=credential,
         hostname=req.hostname,
         ip_address=req.ip_address,
         os_version=req.os_version,
@@ -132,7 +135,7 @@ async def register_agent(
 
     return {
         "agent_id": agent.agent_id,
-        "credential": f"kylin_agent_{uuid.uuid4().hex}",
+        "credential": credential,
         "config": {
             "heartbeat_interval": 10,
             "log_level": "info",

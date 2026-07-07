@@ -72,6 +72,21 @@ function startBackend() {
   console.log(`[Desktop] Backend exe: ${backendExe}`)
   console.log(`[Desktop] Dev mode: ${DEV_MODE}`)
 
+  // Resolve seed password from config.json and inject it as the KYLIN_SEED_PASSWORD
+  // env var when spawning the backend. This ensures first-time DB initialization
+  // uses a known, user-visible default credential instead of an invisible random
+  // password (which would lock the user out of their own desktop install).
+  let seedPassword = ''
+  try {
+    const cfgPath = getConfigPath()
+    if (fs.existsSync(cfgPath)) {
+      const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'))
+      seedPassword = cfg.seed_password || (cfg.backend && cfg.backend.seed_password) || ''
+    }
+  } catch (e) {
+    console.error('[Desktop] Failed to read seed_password from config:', e.message)
+  }
+
   if (DEV_MODE && !fs.existsSync(backendExe)) {
     console.log('[Desktop] Backend exe not found in dev, assuming Python dev server is running')
     return Promise.resolve()
@@ -93,6 +108,7 @@ function startBackend() {
         env: {
           ...process.env,
           PYTHONUNBUFFERED: '1',
+          ...(seedPassword ? { KYLIN_SEED_PASSWORD: seedPassword } : {}),
         },
         windowsHide: true,
       })

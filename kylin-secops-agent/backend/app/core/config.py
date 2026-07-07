@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DB_USER: str = "kylin_secops"
-    DB_PASSWORD: str = "kylin_secops_2026"
+    DB_PASSWORD: str = ""  # MUST be set via env var; never commit real passwords
     DB_NAME: str = "kylin_secops"
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10

@@ -54,6 +54,7 @@ async def seed_db():
         Permission as PermissionEnum,
         DEFAULT_SEED_USERS,
         ROLE_PERMISSIONS,
+        _resolve_seed_password,
     )
 
     _all_perms = sorted([p.value for p in PermissionEnum])
@@ -166,7 +167,7 @@ async def seed_db():
                 {
                     "id": user_id,
                     "username": su["username"],
-                    "password_hash": hash_password(su["password"]),
+                    "password_hash": hash_password(_resolve_seed_password(su["username"])),
                     "display_name": su["display_name"],
                     "email": su["email"],
                     "created_at": datetime.now(timezone.utc),

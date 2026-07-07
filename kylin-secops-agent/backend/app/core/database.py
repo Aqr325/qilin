@@ -162,6 +162,7 @@ async def init_db():
         Permission as PermissionEnum,
         DEFAULT_SEED_USERS,
         ROLE_PERMISSIONS,
+        _resolve_seed_password,
     )
     from app.core.security import hash_password
     from app.models.user import User, Role, Permission as PermissionModel
@@ -243,7 +244,7 @@ async def init_db():
                 session.add(User(
                     id=_uuid.uuid4(),
                     username=su["username"],
-                    password_hash=hash_password(su["password"]),
+                    password_hash=hash_password(_resolve_seed_password(su["username"])),
                     display_name=su["display_name"],
                     email=su["email"],
                     is_active=True,
