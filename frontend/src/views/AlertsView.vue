@@ -289,31 +289,13 @@ async function batchAction(status: string) {
   const ids = Array.from(alertsStore.selectedAlerts)
   try {
     await alertsApi.batchStatus(ids, status)
-    // Update local alerts
-    for (const alert of alertsStore.alerts) {
-      if (ids.includes(alert.id)) {
-        alert.status = status as AlertStatus
-        const statusLabelMap: Record<string, string> = {
-          acknowledged: '处理中', resolved: '已处置', false_positive: '误报',
-          new: '待处理', investigating: '调查中', closed: '已关闭',
-        }
-        alert.status_label = statusLabelMap[status] || status
-      }
-    }
+    // Server confirmed → reconcile store (drops the local override)
+    for (const id of ids) alertsStore.setAlertStatus(id, status as AlertStatus, true)
     (alertsStore.selectedAlerts as Set<string>).clear()
     await alertsStore.fetchStats()
   } catch {
-    // API not available, optimistic update
-    for (const alert of alertsStore.alerts) {
-      if (ids.includes(alert.id)) {
-        alert.status = status as AlertStatus
-        const statusLabelMap: Record<string, string> = {
-          acknowledged: '处理中', resolved: '已处置', false_positive: '误报',
-          new: '待处理', investigating: '调查中', closed: '已关闭',
-        }
-        alert.status_label = statusLabelMap[status] || status
-      }
-    }
+    // API unavailable → keep optimistic edit; override survives background re-fetch
+    for (const id of ids) alertsStore.setAlertStatus(id, status as AlertStatus, false)
     (alertsStore.selectedAlerts as Set<string>).clear()
   }
 }
@@ -333,39 +315,19 @@ function closeDetail() {
 }
 
 async function changeDetailStatus(status: string) {
-  if (detailAlert.value) {
-    try {
-      await alertsApi.updateStatus(detailAlert.value.id, status)
-      // Update local alert in store
-      const idx = alertsStore.alerts.findIndex(a => a.id === detailAlert.value!.id)
-      if (idx >= 0) {
-        alertsStore.alerts[idx].status = status as AlertStatus
-        const statusLabelMap: Record<string, string> = {
-          acknowledged: '处理中', resolved: '已处置', false_positive: '误报',
-          new: '待处理', investigating: '调查中', closed: '已关闭',
-        }
-        alertsStore.alerts[idx].status_label = statusLabelMap[status] || status
-      }
-      closeDetail()
-      // Refresh stats
-      await alertsStore.fetchStats()
-    } catch {
-      // API not available, optimistic update
-      if (detailAlert.value) {
-        const statusLabelMap: Record<string, string> = {
-          acknowledged: '处理中', resolved: '已处置', false_positive: '误报',
-          new: '待处理', investigating: '调查中', closed: '已关闭',
-        }
-        detailAlert.value.status = status as AlertStatus
-        detailAlert.value.status_label = statusLabelMap[status] || status
-        const idx = alertsStore.alerts.findIndex(a => a.id === detailAlert.value!.id)
-        if (idx >= 0) {
-          alertsStore.alerts[idx].status = status as AlertStatus
-          alertsStore.alerts[idx].status_label = statusLabelMap[status] || status
-        }
-      }
-      closeDetail()
-    }
+  if (!detailAlert.value) return
+  const id = detailAlert.value.id
+  try {
+    await alertsApi.updateStatus(id, status)
+    // Server confirmed → reconcile store and clear override
+    alertsStore.setAlertStatus(id, status as AlertStatus, true)
+    closeDetail()
+    // Refresh stats
+    await alertsStore.fetchStats()
+  } catch {
+    // API unavailable → keep optimistic edit; override survives background re-fetch
+    alertsStore.setAlertStatus(id, status as AlertStatus, false)
+    closeDetail()
   }
 }
 

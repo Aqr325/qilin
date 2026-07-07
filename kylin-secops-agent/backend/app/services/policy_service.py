@@ -5,9 +5,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.agent import Agent
 from app.models.policy import Policy, PolicyTarget, PolicyVersion
+from app.repositories.agent_repo import AgentRepository
 from app.repositories.policy_repo import (
     PolicyRepository,
     PolicyTargetRepository,
@@ -79,6 +82,7 @@ async def create_policy(
     )
     db.add(version)
     await db.flush()
+    await db.refresh(policy)
 
     return await _policy_to_detail(policy)
 
@@ -168,6 +172,7 @@ async def update_policy(
     )
     db.add(version)
     await db.flush()
+    await db.refresh(policy)
 
     return await _policy_to_detail(policy)
 
@@ -185,25 +190,65 @@ async def deploy_policy(
     force: bool = False,
     operator: Optional[dict] = None,
 ) -> dict:
-    """Deploy policy to agents."""
+    """Deploy policy to agents.
+
+    真实落库：为每个目标Agent写入/更新 PolicyTarget 下发记录（可追溯下发关系），
+    并提升对应Agent的 config_version，触发其下次心跳拉取最新策略。
+    """
     repo = PolicyRepository(db)
     policy = await repo.get(uuid.UUID(policy_id))
     if not policy:
         raise HTTPException(status_code=404, detail="策略不存在")
 
-    # For now, just update deploy metadata
+    # 解析目标Agent：显式指定则使用指定列表，否则下发到全部在线Agent
+    agent_repo = AgentRepository(db)
+    if agent_ids:
+        targets = [a for a in agent_ids if a]
+    else:
+        online_agents, _ = await agent_repo.list_paginated(limit=5000, status="online")
+        targets = [a.agent_id for a in online_agents]
+
+    now = datetime.now(timezone.utc)
+    deployed: List[str] = []
+    for aid in targets:
+        # 幂等：先清理该策略下此Agent的旧下发记录，再写入最新一条
+        await db.execute(
+            delete(PolicyTarget).where(
+                PolicyTarget.policy_id == policy.id,
+                PolicyTarget.agent_id == aid,
+            )
+        )
+        db.add(PolicyTarget(
+            policy_id=policy.id,
+            agent_id=aid,
+            status="deployed",
+            deployed_version=policy.version,
+            deployed_at=now,
+        ))
+        deployed.append(aid)
+
+        # 提升Agent配置版本，触发其下次心跳拉取最新策略
+        agent = await agent_repo.get_by_agent_id(aid)
+        if agent:
+            agent.config_version = (agent.config_version or 0) + 1
+
     policy.deployed_version = policy.version
-    policy.last_deployed_at = datetime.now(timezone.utc)
+    policy.last_deployed_at = now
     await db.flush()
 
     # Broadcast via WebSocket
     await ws_manager.broadcast("policy.deployed", {
         "policy_id": str(policy.id),
         "version": policy.version,
-        "agent_count": len(agent_ids) if agent_ids else 0,
+        "agent_count": len(deployed),
+        "agent_ids": deployed,
     })
 
-    return {"task_id": str(uuid.uuid4()), "deploy_count": len(agent_ids or [])}
+    return {
+        "task_id": str(uuid.uuid4()),
+        "deploy_count": len(deployed),
+        "agent_ids": deployed,
+    }
 
 
 async def toggle_policy(
@@ -221,6 +266,7 @@ async def toggle_policy(
     policy.status = "enabled" if enabled else "disabled"
     policy.updated_by = uuid.UUID(operator["id"])
     await db.flush()
+    await db.refresh(policy)
 
     return await _policy_to_detail(policy)
 
@@ -258,6 +304,7 @@ async def rollback_policy(
     )
     db.add(new_version)
     await db.flush()
+    await db.refresh(policy)
 
     return await _policy_to_detail(policy)
 

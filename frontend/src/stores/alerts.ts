@@ -15,6 +15,48 @@ export const useAlertsStore = defineStore('alerts', () => {
   const searchKeyword = ref('')
   const selectedAlerts = ref<Set<string>>(new Set())
 
+  // ── Edit-override guard ──
+  // Alerts are fetched in the background (30s polling + Dashboard remount). To keep
+  // user edits from being clobbered by a re-fetch before/while they are persisted,
+  // we remember locally-edited statuses and re-apply them after every fetch.
+  const dirtyAlerts = ref<Set<string>>(new Set())
+  const localStatus = new Map<string, { status: AlertStatus; status_label: string }>()
+
+  const statusLabelMap: Record<string, string> = {
+    acknowledged: '处理中', resolved: '已处置', false_positive: '误报',
+    new: '待处理', investigating: '调查中', closed: '已关闭',
+  }
+
+  function applyLocalOverrides() {
+    for (const id of dirtyAlerts.value) {
+      const override = localStatus.get(id)
+      if (!override) continue
+      const a = alerts.value.find(x => x.id === id)
+      if (a) {
+        a.status = override.status
+        a.status_label = override.status_label
+      }
+    }
+  }
+
+  // Single source of truth for status edits.
+  // confirmed=true → server acknowledged the change, drop the override.
+  // confirmed=false → optimistic only (API failed), keep override so polls can't revert it.
+  function setAlertStatus(id: string, status: AlertStatus, confirmed: boolean) {
+    const status_label = statusLabelMap[status] || status
+    localStatus.set(id, { status, status_label })
+    if (confirmed) {
+      dirtyAlerts.value.delete(id)
+    } else {
+      dirtyAlerts.value = new Set(dirtyAlerts.value).add(id)
+    }
+    const a = alerts.value.find(x => x.id === id)
+    if (a) {
+      a.status = status
+      a.status_label = status_label
+    }
+  }
+
   // Stats
   const pendingCount = ref(42)
   const inProgressCount = ref(18)
@@ -35,6 +77,10 @@ export const useAlertsStore = defineStore('alerts', () => {
       const res = await api.get<PaginatedResponse<Alert>>(`/alerts?${params.toString()}`)
       alerts.value = res.items
       total.value = res.total
+
+      // Re-apply any locally edited statuses so background re-fetches
+      // (polling / Dashboard remount) never revert the user's changes.
+      applyLocalOverrides()
 
       // Also fetch stats
       await fetchStats()
@@ -125,6 +171,7 @@ export const useAlertsStore = defineStore('alerts', () => {
     selectedAlerts,
     pendingCount, inProgressCount, todayNewCount, resolvedCount,
     fetchAlerts, fetchStats, batchUpdateStatus, toggleSelect, toggleSelectAll, setFilter,
+    setAlertStatus,
     startPolling, stopPolling,
   }
 })

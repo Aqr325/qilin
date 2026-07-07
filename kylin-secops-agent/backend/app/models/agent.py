@@ -140,3 +140,39 @@ class AgentHeartbeat(Base):
     ip_address: Mapped[Optional[str]] = mapped_column(
         INET, nullable=True, comment="来源IP"
     )
+
+
+class AgentTask(Base, TimestampMixin):
+    """Agent任务表：升级/重启等动作的可追踪记录（动作类写操作落库）。"""
+
+    __tablename__ = "agent_tasks"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: uuid.uuid4().hex,
+        comment="任务ID",
+    )
+    agent_id: Mapped[str] = mapped_column(
+        String(128), nullable=False, index=True, comment="Agent标识(业务键)"
+    )
+    task_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, index=True, comment="任务类型: upgrade/restart"
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending", server_default="pending",
+        index=True, comment="状态: pending/running/success/failed",
+    )
+    params: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB, default=dict, server_default="{}", comment="任务参数"
+    )
+    result: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB, nullable=True, comment="任务结果",
+    )
+    error_message: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="失败原因",
+    )
+    created_by: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, comment="操作人",
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="完成时间",
+    )
