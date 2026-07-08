@@ -8,4 +8,5 @@ declare module '*.vue' {
 
 interface Window {
   Chart: any
+  electronAPI: any
 }

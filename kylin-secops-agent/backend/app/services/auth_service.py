@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.security import (
@@ -16,7 +17,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.audit import LoginLog
-from app.models.user import User
+from app.models.user import User, Role
 from app.repositories.user_repo import UserRepository, PermissionRepository
 from app.schemas.auth import LoginResponse, UserProfile
 from app.schemas.common import ApiResponse
@@ -48,8 +49,12 @@ async def login(
     user_repo = UserRepository(db)
 
     # 对目标用户行加锁（SELECT ... FOR UPDATE），避免并发登录竞态导致锁计数器错乱
+    # 同时预加载 roles/permissions，避免异步上下文下访问关系触发懒加载（MissingGreenlet）
     result = await db.execute(
-        select(User).where(User.username == username).with_for_update()
+        select(User)
+        .where(User.username == username, User.is_deleted == False)
+        .with_for_update()
+        .options(selectinload(User.roles).selectinload(Role.permissions))
     )
     user = result.scalar_one_or_none()
     if not user:

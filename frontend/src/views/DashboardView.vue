@@ -317,12 +317,14 @@ function initCharts() {
           },
           scales: {
             x: {
-              grid: { color: 'rgba(44, 53, 64, 0.5)', drawBorder: false },
+              grid: { color: 'rgba(44, 53, 64, 0.5)' },
+              border: { display: false },
               ticks: { color: '#5C6673' },
             },
             y: {
               beginAtZero: true,
-              grid: { color: 'rgba(44, 53, 64, 0.5)', drawBorder: false },
+              grid: { color: 'rgba(44, 53, 64, 0.5)' },
+              border: { display: false },
               ticks: { color: '#5C6673', stepSize: 10 },
             },
           },

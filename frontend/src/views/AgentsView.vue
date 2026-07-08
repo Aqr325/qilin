@@ -308,7 +308,7 @@ function cpuBarClass(v: number | undefined) { const n = v ?? 0; return n > 80 ? 
 function memBarClass(v: number | undefined) { const n = v ?? 0; return n > 80 ? 'bar-critical' : n > 60 ? 'bar-warn' : 'bar-ok' }
 function diskBarClass(v: number | undefined) { const n = v ?? 0; return n > 85 ? 'bar-critical' : n > 70 ? 'bar-warn' : 'bar-ok' }
 
-function formatMemory(mb: number) {
+function formatMemory(mb?: number) {
   if (!mb) return '-'
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`
 }
