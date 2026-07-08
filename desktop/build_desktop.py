@@ -150,7 +150,7 @@ def build_backend():
         shutil.rmtree(build_dir)
 
     # Build
-    spec_file = os.path.join(BACKEND_DIR, 'desktop.spec')
+    spec_file = os.path.join(BACKEND_DIR, 'backend.spec')
     if not run(f'pyinstaller "{spec_file}"', cwd=BACKEND_DIR, description='Running PyInstaller'):
         return False
 
