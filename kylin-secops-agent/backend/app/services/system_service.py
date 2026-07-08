@@ -368,6 +368,18 @@ async def delete_role(db: AsyncSession, role_id: str, operator: dict):
         raise HTTPException(status_code=404, detail="角色不存在")
     if role.is_system:
         raise HTTPException(status_code=400, detail="系统内置角色不可删除")
+    # 检查是否有用户关联该角色
+    from sqlalchemy import select, func
+    from app.models.user import User
+    user_count_result = await db.execute(
+        select(func.count()).select_from(User).where(User.role == role.name)
+    )
+    user_count = user_count_result.scalar()
+    if user_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"角色 '{role.name}' 已被 {user_count} 个用户使用，无法删除。请先解除用户关联。"
+        )
     await db.delete(role)
     await db.flush()
 

@@ -12,7 +12,7 @@ from app.services.websocket_service import ws_manager
 router = APIRouter(tags=["WebSocket"])
 
 
-async def _authenticate_websocket_token(
+def _authenticate_websocket_token(
     token: str | None,
     expected_id: str | None = None,
     id_field: str = "sub",

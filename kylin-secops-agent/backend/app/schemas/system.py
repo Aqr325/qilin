@@ -12,7 +12,7 @@ class UserCreate(BaseModel):
     """创建用户请求."""
 
     username: str = Field(..., min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=12, max_length=128)
     display_name: str = Field(..., min_length=1, max_length=100)
     email: str
     phone: Optional[str] = None
@@ -111,7 +111,7 @@ class RoleDetail(BaseModel):
 class LoginLog(BaseModel):
     """登录日志."""
 
-    id: int
+    id: str
     username: str
     status: str
     failure_reason: Optional[str] = None
@@ -123,7 +123,7 @@ class LoginLog(BaseModel):
 
 class LoginLogUpdate(BaseModel):
     """登录日志状态更新."""
-    id: int
+    id: str
     status: Optional[str] = None
     failure_reason: Optional[str] = None
 

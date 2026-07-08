@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 from app.models.agent import Agent, AgentHeartbeat, AgentTask as AgentTaskModel
+from app.models.audit import AuditLog
 from app.repositories.agent_repo import AgentRepository, AgentHeartbeatRepository
 from app.schemas.agent import (
     AgentDetail,
@@ -160,6 +161,18 @@ async def register_agent(
     )
     db.add(agent)
     await db.flush()
+
+    db.add(AuditLog(
+        id=uuid.uuid4(),
+        user_id=None,
+        username="system",
+        action="agent_register",
+        resource_type="agent",
+        resource_id=str(agent.agent_id),
+        detail=f"Agent注册: {req.hostname or 'unknown'}",
+        ip_address="",
+        status="success",
+    ))
 
     return {
         "agent_id": agent.agent_id,
@@ -474,6 +487,18 @@ async def upgrade_agents(
         )
         db.add(task)
         tasks.append(task)
+
+        db.add(AuditLog(
+            id=uuid.uuid4(),
+            user_id=None,
+            username=str(operator) if operator else "system",
+            action="agent_upgrade",
+            resource_type="agent",
+            resource_id=aid,
+            detail=f"升级Agent {aid} 到版本 {target_version}",
+            ip_address="",
+            status="success",
+        ))
 
     await db.flush()
     task_ids = [t.id for t in tasks]
