@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.ai import AiConversation, AiModelConfig
+from app.core.security import decrypt_api_key
 from app.schemas.ai import (
     AIFeedbackRequest,
     AIPlaybookResponse,
@@ -89,7 +90,7 @@ async def _call_model_api(
 
         provider = model_config.provider.lower()
         api_url = model_config.api_url or ""
-        api_key = model_config.api_key or ""
+        api_key = decrypt_api_key(model_config.api_key) if model_config.api_key else ""
         model_name = model_config.model or ""
 
         # Validate required fields

@@ -14,7 +14,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from app.models.types import UUID, JSONB
 
@@ -107,3 +107,10 @@ class AiModelConfig(Base, TimestampMixin):
     is_default: Mapped[bool] = mapped_column(
         SmallInteger, default=0, server_default="0", comment="是否为默认模型"
     )
+
+    @validates('api_key')
+    def validate_api_key(self, key, value):
+        if value and not value.startswith('gAAAAA'):
+            from app.core.security import encrypt_api_key
+            return encrypt_api_key(value)
+        return value

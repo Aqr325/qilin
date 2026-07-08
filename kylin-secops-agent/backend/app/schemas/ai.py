@@ -195,6 +195,7 @@ class AiModelConfig(BaseModel):
     provider: str
     model: str
     api_url: Optional[str] = None
+    api_key: Optional[str] = None  # 响应中不返回实际密钥
     temperature: float = 0.7
     max_tokens: int = 4096
     system_prompt: Optional[str] = None

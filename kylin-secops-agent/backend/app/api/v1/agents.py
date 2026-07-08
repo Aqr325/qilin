@@ -1,10 +1,11 @@
 """Agent management routes (both management and communication)."""
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_pagination, get_request_id
 from app.core.database import get_db
+from app.models.agent import Agent
 from app.schemas.agent import (
     AgentBatchEventsRequest,
     AgentDetail,
@@ -28,10 +29,27 @@ from app.services import agent_service
 router = APIRouter(prefix="/agent", tags=["Agent通信"])
 
 
+async def validate_agent_token(
+    x_agent_token: str = Header(None, alias="X-Agent-Token"),
+    db: AsyncSession = Depends(get_db),
+):
+    """验证Agent通信令牌。"""
+    if not x_agent_token:
+        raise HTTPException(status_code=401, detail="Missing X-Agent-Token header")
+    from sqlalchemy import select
+    from app.models.agent import Agent
+    result = await db.execute(select(Agent).where(Agent.credential == x_agent_token))
+    agent = result.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=401, detail="Invalid agent token")
+    return agent
+
+
 @router.post("/heartbeat", response_model=ApiResponse[HeartbeatResponse])
 async def agent_heartbeat(
     req: HeartbeatRequest,
     request: Request,
+    agent: Agent = Depends(validate_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent心跳上报."""
@@ -54,6 +72,7 @@ async def agent_register(
 @router.post("/events", response_model=ApiResponse)
 async def agent_batch_events(
     req: AgentBatchEventsRequest,
+    agent: Agent = Depends(validate_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent批量事件上报."""
@@ -64,6 +83,7 @@ async def agent_batch_events(
 @router.get("/{agent_id}/config", response_model=ApiResponse)
 async def agent_get_config(
     agent_id: str,
+    agent: Agent = Depends(validate_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent拉取配置."""
@@ -75,6 +95,7 @@ async def agent_get_config(
 async def agent_task_result(
     agent_id: str,
     req: AgentTaskResultRequest,
+    agent: Agent = Depends(validate_agent_token),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent任务结果上报."""

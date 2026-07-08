@@ -1,11 +1,16 @@
 """Agent service: heartbeat, register, CRUD, upgrade, etc."""
 
+import logging
+import time
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.models.agent import Agent, AgentHeartbeat, AgentTask as AgentTaskModel
 from app.repositories.agent_repo import AgentRepository, AgentHeartbeatRepository
@@ -26,6 +31,19 @@ from app.schemas.agent import (
 from app.schemas.common import Page
 from app.services.websocket_service import ws_manager
 
+_auto_register_counts = defaultdict(list)
+
+
+def _check_auto_register_limit() -> bool:
+    """检查自动注册频率限制，每分钟最多10次。"""
+    now = time.time()
+    key = "auto_register"
+    _auto_register_counts[key] = [t for t in _auto_register_counts[key] if now - t < 60]
+    if len(_auto_register_counts[key]) >= 10:
+        return False
+    _auto_register_counts[key].append(now)
+    return True
+
 
 async def process_heartbeat(
     db: AsyncSession,
@@ -41,6 +59,16 @@ async def process_heartbeat(
 
     if not agent:
         # Auto-register unknown agents
+        if not _check_auto_register_limit():
+            logger.warning("Auto-register rate limit exceeded, skipping")
+            return HeartbeatResponse(
+                server_time=datetime.now(timezone.utc).isoformat(),
+                next_heartbeat_interval=30,
+                config_version="",
+                config_update_required=False,
+                pending_tasks=[],
+                ack_action="reject",
+            )
         agent = Agent(
             agent_id=agent_id,
             credential=f"kylin_agent_{uuid.uuid4().hex}",
@@ -135,7 +163,8 @@ async def register_agent(
 
     return {
         "agent_id": agent.agent_id,
-        "credential": credential,
+        "message": "Agent registered successfully. Save the credential securely.",
+        "credential_hint": credential[:8] + "***（注册成功，请妥善保存凭据）",
         "config": {
             "heartbeat_interval": 10,
             "log_level": "info",
@@ -162,10 +191,10 @@ async def process_batch_events(
                 alert = Alert(
                     id=uuid.uuid4(),
                     source=event.get("source", ""),
-                    level=event.get("level", "medium"),
+                    severity=event.get("severity", "medium"),
                     title=event.get("title", "未知告警"),
                     description=event.get("description", ""),
-                    status="pending",
+                    status="new",
                 )
                 db.add(alert)
                 await db.flush()
