@@ -14,7 +14,7 @@ import os
 import sys
 from PyInstaller.utils.hooks import collect_submodules
 
-BACKEND_DIR = r'D:\workbuddy workspace\2026-06-23-20-22-53\kylin-secops-agent\backend'
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Collect ALL app/ submodules dynamically
 app_hidden_imports = collect_submodules('app')
@@ -220,9 +220,7 @@ extra_hidden_imports = [
     'setuptools',
     'pkg_resources',
     'zope.interface',
-    '__editable__',
-    '__editable___kylin_secops_agent_1_0_0_finder',
-]
+    ]
 
 # greenlet is required by sqlalchemy for async support — must NOT be excluded
 extra_hidden_imports.append('greenlet')

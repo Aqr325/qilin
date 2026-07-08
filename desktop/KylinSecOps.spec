@@ -3,7 +3,7 @@ import os
 import sys
 from PyInstaller.utils.hooks import collect_submodules, collect_all
 
-PROJECT_DIR = r'D:/workbuddy workspace/2026-06-23-20-22-53'
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(PROJECT_DIR, 'kylin-secops-agent', 'backend')
 
 # Collect ALL app/ submodules dynamically
@@ -165,7 +165,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

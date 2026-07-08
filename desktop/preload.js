@@ -19,5 +19,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appName: '麒麟OS安全运维',
 
   // IPC helpers
-  getBackendUrl: () => 'http://127.0.0.1:8000',
+  getBackendUrl: () => 'http://127.0.0.1:8001',
 })
