@@ -187,6 +187,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { usePoliciesStore } from '@/stores/policies'
+import { useAuthStore } from '@/stores/auth'
 import { policiesApi } from '@/services/api/policies'
 import { showToast } from '@/utils/toast'
 import type { Policy, PolicyType } from '@/types'
@@ -194,6 +195,7 @@ import type { Policy, PolicyType } from '@/types'
 defineOptions({ name: 'Policies' })
 
 const policiesStore = usePoliciesStore()
+const authStore = useAuthStore()
 
 const activeTab = ref('list')
 const tabs = [
@@ -385,7 +387,10 @@ async function savePolicy() {
         rules,
         priority: editorForm.value.priority,
         enabled: false,
-        created_by: { id: 'user-1', display_name: '系统管理员' },
+        created_by: {
+          id: authStore.user?.id || '',
+          display_name: authStore.user?.display_name || '系统',
+        },
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -414,19 +419,8 @@ async function deployPolicy(policy: Policy) {
     await policiesApi.deploy(policy.id)
     // refresh
     await policiesStore.fetchPolicies()
-  } catch {
-    // API not available, optimistic update
-    const p = policiesStore.policies.find(p => p.id === policy.id)
-    if (p) {
-      p.status = 'deploying'
-      p.status_label = '下发中'
-      setTimeout(() => {
-        if (p) {
-          p.status = 'enabled'
-          p.status_label = '已启用'
-        }
-      }, 2000)
-    }
+  } catch (e) {
+    showToast(`策略「${policy.name}」下发失败，请重试`, 'error')
   }
 }
 

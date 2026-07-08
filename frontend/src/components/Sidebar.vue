@@ -57,37 +57,32 @@ const navItems = computed(() => [
   {
     path: '/dashboard',
     label: '仪表盘',
-    badge: 0,
     icon: '<rect x="1" y="1" width="6" height="7" rx="1"/><rect x="11" y="1" width="6" height="4" rx="1"/><rect x="1" y="12" width="6" height="5" rx="1"/><rect x="11" y="9" width="6" height="8" rx="1"/>',
   },
   {
     path: '/alerts',
     label: '告警管理',
-    badge: alertsStore.pendingCount || 0,
+    badge: alertsStore.pendingCount || undefined,
     icon: '<path d="M9 1v16M1 9h16"/><circle cx="9" cy="9" r="6"/><circle cx="9" cy="9" r="2" fill="currentColor" fill-opacity="0.4"/>',
   },
   {
     path: '/agents',
     label: 'Agent 管理',
-    badge: 0,
     icon: '<rect x="2" y="1" width="4" height="6" rx="1"/><rect x="12" y="1" width="4" height="4" rx="1"/><rect x="2" y="11" width="4" height="6" rx="1"/><rect x="12" y="9" width="4" height="8" rx="1"/><path d="M4 8v3M14 6v3" stroke="currentColor" stroke-width="1.2"/>',
   },
   {
     path: '/policies',
     label: '策略配置',
-    badge: 0,
     icon: '<circle cx="9" cy="9" r="7.5"/><circle cx="9" cy="9" r="4.5"/><circle cx="9" cy="9" r="1.5" fill="currentColor" fill-opacity="0.4"/><path d="M9 1.5v3M9 13.5v3M1.5 9h3M13.5 9h3"/>',
   },
   {
     path: '/system',
     label: '系统管理',
-    badge: 0,
     icon: '<rect x="2" y="2" width="14" height="14" rx="2"/><path d="M5 6h8M5 9h8M5 12h5"/>',
   },
   {
     path: '/ai',
     label: 'AI 助手',
-    badge: 0,
     icon: '<circle cx="9" cy="9" r="6"/><circle cx="9" cy="9" r="2" fill="currentColor" fill-opacity="0.4"/><path d="M9 1.5v3M1.5 9h3M14.5 9h3M9 13.5v3"/>',
   },
 ])
@@ -97,7 +92,7 @@ const isActive = (path: string) => route.path === path || route.path.startsWith(
 const userName = computed(() => authStore.user?.display_name || '用户')
 const userRole = computed(() => {
   const roles = authStore.user?.roles
-  return roles?.length ? roles[0].display_name : '安全运维工程师'
+  return roles?.length ? roles[0].display_name : '用户'
 })
 const userInitial = computed(() => userName.value.charAt(0))
 

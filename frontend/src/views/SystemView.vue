@@ -109,10 +109,7 @@
             <thead>
               <tr>
                 <th>权限</th>
-                <th>系统管理员</th>
-                <th>安全运维员</th>
-                <th>安全审计员</th>
-                <th>只读用户</th>
+                <th v-for="r in systemStore.roles" :key="r.id">{{ r.display_name }}</th>
               </tr>
             </thead>
             <tbody>
@@ -281,10 +278,8 @@
             <div class="form-group">
               <label>角色</label>
               <select v-model="userForm.role" class="form-select">
-                <option value="admin">系统管理员</option>
-                <option value="operator">安全运维员</option>
-                <option value="auditor">安全审计员</option>
-                <option value="readonly">只读用户</option>
+                <option value="" disabled>请选择角色</option>
+                <option v-for="ro in roleOptions" :key="ro.value" :value="ro.value">{{ ro.label }}</option>
               </select>
             </div>
           </div>
@@ -324,7 +319,7 @@
             <div class="form-group">
               <label>权限设置</label>
               <div class="perm-grid">
-                <label v-for="perm in allPermissions" :key="perm.id" class="perm-checkbox">
+                <label v-for="perm in permissionList" :key="perm.id" class="perm-checkbox">
                   <input type="checkbox" v-model="roleForm.permissions" :value="perm.id" />
                   <span>{{ perm.label }}</span>
                 </label>
@@ -347,6 +342,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useSystemStore, type SystemUser } from '@/stores/system'
 import { systemApi, type SystemRole } from '@/services/api/system'
+import api from '@/services/api'
 import { exportToCSV, timestampSuffix } from '@/utils/csv'
 import { showToast } from '@/utils/toast'
 
@@ -357,6 +353,41 @@ const activeTab = ref('users')
 const auditKeyword = ref('')
 const auditCurrentPage = ref(1)
 const auditTotalPages = computed(() => Math.max(1, Math.ceil((systemStore.auditLogsTotal || 0) / 20)))
+
+// 动态权限列表
+const permissionList = ref<{ id: string; label: string }[]>([])
+const loadingPermissions = ref(false)
+
+// 角色下拉选项（从 systemStore.roles 动态渲染）
+const roleOptions = computed(() =>
+  systemStore.roles.map(r => ({ value: r.name, label: r.display_name }))
+)
+
+async function fetchPermissions() {
+  loadingPermissions.value = true
+  try {
+    const perms = await api.get<any>('/system/permissions')
+    permissionList.value = Array.isArray(perms) ? perms : (perms.items || [])
+  } catch {
+    console.warn('Failed to load permissions, using defaults')
+    permissionList.value = [
+      { id: 'alert:read', label: '告警查看' },
+      { id: 'alert:write', label: '告警处置' },
+      { id: 'agent:read', label: 'Agent 查看' },
+      { id: 'agent:write', label: 'Agent 管理' },
+      { id: 'policy:read', label: '策略查看' },
+      { id: 'policy:write', label: '策略配置' },
+      { id: 'policy:deploy', label: '策略下发' },
+      { id: 'user:write', label: '用户管理' },
+      { id: 'role:write', label: '角色管理' },
+      { id: 'audit:read', label: '审计日志' },
+      { id: 'system:write', label: '系统设置' },
+      { id: 'ai:chat', label: 'AI 对话' },
+    ]
+  } finally {
+    loadingPermissions.value = false
+  }
+}
 
 function searchAuditLogs() {
   auditCurrentPage.value = 1
@@ -424,19 +455,28 @@ function exportAuditLogs() {
   exportToCSV(systemStore.auditLogs, columns, `审计日志导出_${timestampSuffix()}.csv`)
 }
 
-const permMatrix = [
-  { action: '告警查看', roles: [true, true, true, true] },
-  { action: '告警处置', roles: [true, true, false, false] },
-  { action: 'Agent 查看', roles: [true, true, true, true] },
-  { action: 'Agent 管理', roles: [true, true, false, false] },
-  { action: '策略配置', roles: [true, true, false, false] },
-  { action: '策略下发', roles: [true, true, false, false] },
-  { action: '用户管理', roles: [true, false, false, false] },
-  { action: '角色管理', roles: [true, false, false, false] },
-  { action: '审计日志', roles: [true, false, true, false] },
-  { action: '系统设置', roles: [true, false, false, false] },
-  { action: 'AI 对话', roles: [true, true, false, false] },
-]
+// 权限矩阵：从动态权限列表和角色数据计算
+const permMatrix = computed(() => {
+  const perms = permissionList.value.length > 0 ? permissionList.value : [
+    { id: 'alert:read', label: '告警查看' },
+    { id: 'alert:write', label: '告警处置' },
+    { id: 'agent:read', label: 'Agent 查看' },
+    { id: 'agent:write', label: 'Agent 管理' },
+    { id: 'policy:read', label: '策略查看' },
+    { id: 'policy:write', label: '策略配置' },
+    { id: 'policy:deploy', label: '策略下发' },
+    { id: 'user:write', label: '用户管理' },
+    { id: 'role:write', label: '角色管理' },
+    { id: 'audit:read', label: '审计日志' },
+    { id: 'system:write', label: '系统设置' },
+    { id: 'ai:chat', label: 'AI 对话' },
+  ]
+  const roles = systemStore.roles
+  return perms.map(p => ({
+    action: p.label,
+    roles: roles.map(r => (r.permissions || []).includes(p.id)),
+  }))
+})
 
 function actionLabel(action: string) {
   const map: Record<string, string> = {
@@ -571,20 +611,7 @@ const roleForm = ref({
   permissions: [] as string[],
 })
 
-const allPermissions = [
-  { id: 'alert:read', label: '告警查看' },
-  { id: 'alert:write', label: '告警处置' },
-  { id: 'agent:read', label: 'Agent 查看' },
-  { id: 'agent:write', label: 'Agent 管理' },
-  { id: 'policy:read', label: '策略查看' },
-  { id: 'policy:write', label: '策略配置' },
-  { id: 'policy:deploy', label: '策略下发' },
-  { id: 'user:write', label: '用户管理' },
-  { id: 'role:write', label: '角色管理' },
-  { id: 'audit:read', label: '审计日志' },
-  { id: 'system:write', label: '系统设置' },
-  { id: 'ai:chat', label: 'AI 对话' },
-]
+// 权限列表已改为动态获取，由 permissionList 提供
 
 function openRoleDialog() {
   editingRole.value = null
@@ -666,6 +693,7 @@ onMounted(async () => {
     systemStore.fetchRoles(),
     systemStore.fetchAuditLogs(),
     fetchSettings(),
+    fetchPermissions(),
   ])
 })
 </script>

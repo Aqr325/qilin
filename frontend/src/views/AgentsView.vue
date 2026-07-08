@@ -193,9 +193,8 @@
             <div class="form-group">
               <label>目标版本</label>
               <select v-model="upgradeVersion" class="filter-select" style="width:100%;">
-                <option value="3.2.1">v3.2.1（最新版）</option>
-                <option value="3.2.0">v3.2.0</option>
-                <option value="3.1.9">v3.1.9</option>
+                <option value="" disabled>请选择版本</option>
+                <option v-for="v in availableVersions" :key="v" :value="v">v{{ v }}</option>
               </select>
             </div>
             <div class="form-group">
@@ -264,7 +263,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAgentsStore } from '@/stores/agents'
 
 defineOptions({ name: 'Agents' })
@@ -276,9 +275,14 @@ const agentsStore = useAgentsStore()
 
 const detailAgent = ref<Agent | null>(null)
 const showUpgradeDialog = ref(false)
-const upgradeVersion = ref('3.2.1')
+const upgradeVersion = ref('')
 const upgradeScope = ref('selected')
-const grayPercent = ref(30)
+const grayPercent = ref(30) // 保留合理默认值，生产环境应改为配置项
+
+const availableVersions = computed(() => {
+  const versions = new Set(agentsStore.agents.map(a => a.agent_version).filter(Boolean))
+  return Array.from(versions).sort().reverse()
+})
 
 // Policy list for deploy dialog
 const policyList = ref<Policy[]>([])
@@ -330,6 +334,10 @@ function restartAgent(agent: Agent) {
 }
 
 async function startUpgrade() {
+  if (!upgradeVersion.value) {
+    showToast('请选择升级版本', 'warning')
+    return
+  }
   try {
     const targetAgents = upgradeScope.value === 'selected'
       ? agentsStore.agents.filter(a => a.status !== 'offline' && a.status !== 'error').map(a => a.agent_id)

@@ -33,7 +33,7 @@
           <path d="M14 7a5 5 0 0 0-10 0c0 3-1.5 4.5-2 5h14c-0.5-0.5-2-2-2-5"/>
           <path d="M10.5 14a1.5 1.5 0 0 1-3 0"/>
         </svg>
-        <span class="badge-dot"></span>
+        <span v-if="notificationCount > 0" class="badge-dot"></span>
       </button>
       <div class="topbar-user-avatar" @click="router.push('/profile')" style="cursor:pointer;">{{ userInitial }}</div>
     </div>
@@ -51,6 +51,7 @@ const authStore = useAuthStore()
 
 const searchQuery = ref('')
 const showNotifications = ref(false)
+const notificationCount = ref(0)
 
 const currentPage = computed(() => (route.meta.title as string) || '未知页面')
 
@@ -64,8 +65,7 @@ const searchPlaceholder = computed(() => {
 })
 
 const userInitial = computed(() => {
-  const name = authStore.user?.display_name || '赵'
-  return name.charAt(0)
+  return authStore.user?.display_name?.charAt(0) || '用'
 })
 
 function handleSearch() {
