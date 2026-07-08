@@ -13,7 +13,11 @@ const authStore = useAuthStore()
 const alertsStore = useAlertsStore()
 
 onMounted(async () => {
-  await authStore.fetchCurrentUser()
+  try {
+    await authStore.fetchCurrentUser()
+  } catch (e) {
+    console.warn('Failed to fetch current user, starting poll anyway:', e)
+  }
   alertsStore.startPolling()
 })
 </script>

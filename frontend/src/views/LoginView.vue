@@ -44,7 +44,7 @@
               id="password"
               v-model="password"
               type="password"
-              placeholder="admin123"
+              placeholder="请输入密码"
               @focus="focusPass = true"
               @blur="focusPass = false"
               :disabled="loading"
