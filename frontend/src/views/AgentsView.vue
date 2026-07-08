@@ -323,6 +323,7 @@ function closeDetail() {
 }
 
 function restartAgent(agent: Agent) {
+  // confirm() is kept for confirmation dialogs
   if (confirm(`确认远程重启 ${agent.hostname} 的 Agent 服务？`)) {
     agentsStore.restartAgent(agent.agent_id)
   }
@@ -341,11 +342,11 @@ async function startUpgrade() {
       return
     }
     await agentsStore.upgradeAgents(targetAgents, upgradeVersion.value)
-    alert(`已向 ${targetAgents.length} 个 Agent 下发升级任务 v${upgradeVersion.value}`)
+    showToast(`已向 ${targetAgents.length} 个 Agent 下发升级任务 v${upgradeVersion.value}`, 'success')
     showUpgradeDialog.value = false
     await agentsStore.fetchAgents()
   } catch {
-    alert('升级任务下发失败')
+    showToast('升级任务下发失败', 'error')
   }
 }
 
@@ -376,9 +377,9 @@ async function confirmDeployPolicy() {
   deploying.value = true
   try {
     await policiesApi.deploy(deployPolicyForm.value.policyId, [deployAgent.value.agent_id], deployPolicyForm.value.force)
-    alert(`策略已成功下发到 Agent「${deployAgent.value.hostname}」`)
+    showToast(`策略已成功下发到 Agent「${deployAgent.value.hostname}」`, 'success')
   } catch {
-    alert('策略下发失败，请检查后端服务')
+    showToast('策略下发失败，请检查后端服务', 'error')
   } finally {
     deploying.value = false
     closeDeployPolicyDialog()

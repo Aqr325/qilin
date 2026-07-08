@@ -137,7 +137,7 @@
             <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
               <circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/>
             </svg>
-            <input v-model="auditKeyword" type="text" placeholder="搜索日志..." class="filter-search" />
+            <input v-model="auditKeyword" type="text" placeholder="搜索日志..." class="filter-search" @keyup.enter="searchAuditLogs" />
           </div>
           <button class="action-btn" @click="exportAuditLogs">
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;">
@@ -179,11 +179,17 @@
           </table>
         </div>
         <div class="table-footer">
-          <div class="table-info">共 {{ systemStore.auditLogs.length }} 条记录</div>
+          <div class="table-info">共 {{ systemStore.auditLogsTotal }} 条记录</div>
           <div class="pagination">
-            <button class="page-btn active">1</button>
-            <button class="page-btn">2</button>
-            <button class="page-btn">3</button>
+            <button
+              v-for="p in auditTotalPages"
+              :key="p"
+              class="page-btn"
+              :class="{ active: auditCurrentPage === p }"
+              @click="goToAuditPage(p)"
+            >
+              {{ p }}
+            </button>
           </div>
         </div>
       </div>
@@ -338,7 +344,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useSystemStore, type SystemUser } from '@/stores/system'
 import { systemApi, type SystemRole } from '@/services/api/system'
 import { exportToCSV, timestampSuffix } from '@/utils/csv'
@@ -349,6 +355,18 @@ defineOptions({ name: 'System' })
 const systemStore = useSystemStore()
 const activeTab = ref('users')
 const auditKeyword = ref('')
+const auditCurrentPage = ref(1)
+const auditTotalPages = computed(() => Math.max(1, Math.ceil((systemStore.auditLogsTotal || 0) / 20)))
+
+function searchAuditLogs() {
+  auditCurrentPage.value = 1
+  systemStore.fetchAuditLogs({ keyword: auditKeyword.value, page: 1 })
+}
+
+function goToAuditPage(page: number) {
+  auditCurrentPage.value = page
+  systemStore.fetchAuditLogs({ keyword: auditKeyword.value, page })
+}
 
 const tabs = [
   { key: 'users', label: '用户管理' },

@@ -46,12 +46,14 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useAlertsStore } from '@/stores/alerts'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const alertsStore = useAlertsStore()
 
-const navItems = [
+const navItems = computed(() => [
   {
     path: '/dashboard',
     label: '仪表盘',
@@ -61,7 +63,7 @@ const navItems = [
   {
     path: '/alerts',
     label: '告警管理',
-    badge: 42,
+    badge: alertsStore.pendingCount || 0,
     icon: '<path d="M9 1v16M1 9h16"/><circle cx="9" cy="9" r="6"/><circle cx="9" cy="9" r="2" fill="currentColor" fill-opacity="0.4"/>',
   },
   {
@@ -88,7 +90,7 @@ const navItems = [
     badge: 0,
     icon: '<circle cx="9" cy="9" r="6"/><circle cx="9" cy="9" r="2" fill="currentColor" fill-opacity="0.4"/><path d="M9 1.5v3M1.5 9h3M14.5 9h3M9 13.5v3"/>',
   },
-]
+])
 
 const isActive = (path: string) => route.path === path || route.path.startsWith(path + '/')
 

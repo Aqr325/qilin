@@ -71,9 +71,16 @@
         <div class="chart-card-header">
           <span class="chart-card-title">告警分布</span>
         </div>
-        <div class="chart-wrapper">
-          <canvas ref="doughnutChartRef"></canvas>
-        </div>
+        <template v-if="hasAlertData">
+          <div class="chart-wrapper">
+            <canvas ref="doughnutChartRef"></canvas>
+          </div>
+        </template>
+        <template v-else>
+          <div class="chart-wrapper" style="display:flex;align-items:center;justify-content:center;">
+            <div class="empty-chart-placeholder" style="color:var(--color-text-tertiary);font-size:var(--text-body-sm);">暂无告警分布数据</div>
+          </div>
+        </template>
       </div>
 
       <div class="chart-card">
@@ -172,6 +179,9 @@ let trendChart: any = null
 let doughnutChart: any = null
 
 const overview = computed(() => store.overview)
+const hasAlertData = computed(() => {
+  return store.criticalCount > 0 || store.highCount > 0 || store.mediumCount > 0 || store.lowCount > 0
+})
 const agentHealthTotal = computed(() => {
   const h = store.agentHealth
   return (h?.online ?? 0) + (h?.offline ?? 0) + (h?.error ?? 0) + (h?.pending ?? 0)

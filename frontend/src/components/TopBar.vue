@@ -69,8 +69,9 @@ const userInitial = computed(() => {
 })
 
 function handleSearch() {
-  // Emit search event or navigate with query
-  console.log('Search:', searchQuery.value)
+  if (searchQuery.value.trim()) {
+    router.push(`/alerts?search=${encodeURIComponent(searchQuery.value.trim())}`)
+  }
 }
 
 function toggleTheme() {

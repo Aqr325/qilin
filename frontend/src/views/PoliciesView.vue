@@ -243,10 +243,16 @@ function editPolicy(policy: Policy) {
     policy_type: policy.policy_type,
     priority: policy.priority,
     target_type: policy.target_type,
-    rulesText: JSON.stringify(policy.rules, null, 2),
+    rulesText: getRulesText(policy.rules),
     effective_start: policy.effective_start || '',
   }
   showEditor.value = true
+}
+
+function getRulesText(rules: any): string {
+  if (typeof rules === 'string') return rules
+  if (rules && typeof rules === 'object') return JSON.stringify(rules, null, 2)
+  return ''
 }
 
 function openCreatePolicy() {
@@ -281,12 +287,12 @@ async function validateRules() {
     if (res.valid) {
       showToast('策略语法校验通过', 'success')
     } else {
-      alert(`策略语法校验失败: ${res.error || '未知错误'}`)
+      showToast(`策略语法校验失败: ${res.error || '未知错误'}`, 'error')
     }
   } catch {
     // API not available, do basic frontend validation
     if (!editorForm.value.rulesText.trim()) {
-      alert('规则配置不能为空')
+      showToast('规则配置不能为空', 'warning')
       return
     }
     // Basic validation: try JSON parse first
@@ -309,7 +315,7 @@ async function validateRules() {
       if (!hasError) {
         showToast('策略语法校验通过', 'success')
       } else {
-        alert('策略语法校验失败：每行应包含键值对（key: value）或列表项（- item）')
+        showToast('策略语法校验失败：每行应包含键值对（key: value）或列表项（- item）', 'error')
       }
     }
   }
@@ -317,7 +323,7 @@ async function validateRules() {
 
 async function savePolicy() {
   if (!editorForm.value.name.trim()) {
-    alert('策略名称不能为空')
+    showToast('策略名称不能为空', 'warning')
     return
   }
 
@@ -402,6 +408,7 @@ function policyTypeLabel(type: string): string {
 }
 
 async function deployPolicy(policy: Policy) {
+  // confirm() is kept for confirmation dialogs
   if (!confirm(`确认将策略「${policy.name}」下发到目标 Agent？`)) return
   try {
     await policiesApi.deploy(policy.id)
