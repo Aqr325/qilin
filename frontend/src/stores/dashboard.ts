@@ -38,10 +38,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
           ? Math.round((1 - res.active_alerts / (res.total_alerts + res.active_alerts)) * 100)
           : 100,
         // TODO: Replace hardcoded trend percentages with real comparison data
-        alert_trend_percent: 12.5,
-        agent_trend_percent: Math.round((res.online_agents / (res.total_agents || 1)) * 50),
-        high_trend_percent: -8.7,
-        health_trend_percent: 0.8,
+        alert_trend_percent: 0,
+        agent_trend_percent: 0,
+        high_trend_percent: 0,
+        health_trend_percent: 0,
       }
       // Update agent health from overview
       agentHealth.value = {

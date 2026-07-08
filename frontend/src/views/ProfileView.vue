@@ -84,6 +84,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { showToast } from '@/utils/toast'
 import api from '@/services/api'
 
 defineOptions({ name: 'Profile' })
@@ -120,7 +121,7 @@ async function saveProfile() {
       email: profileForm.value.email,
       phone: profileForm.value.phone,
     })
-    alert('个人资料保存成功')
+    showToast('个人资料保存成功', 'success')
     // Refresh auth store
     if (authStore.user) {
       authStore.user.display_name = profileForm.value.display_name
@@ -128,7 +129,7 @@ async function saveProfile() {
       authStore.user.phone = profileForm.value.phone
     }
   } catch (e: any) {
-    alert(`保存失败：${e.message || '请检查网络连接'}`)
+    showToast(`保存失败：${e.message || '请检查网络连接'}`, 'error')
   }
 }
 
@@ -148,6 +149,7 @@ async function changePassword() {
       new_password: passwordForm.value.new_password,
     })
     passwordForm.value = { current_password: '', new_password: '', confirm_password: '' }
+    showToast('密码修改成功', 'success')
   } catch {
     passwordError.value = '密码修改失败，请检查当前密码是否正确'
   }

@@ -77,7 +77,8 @@
             </svg>
           </div>
           <div class="msg-bubble">
-            <div class="msg-content">{{ msg.content }}</div>
+            <div v-if="msg.role === 'ai'" class="msg-content" v-html="renderMarkdown(msg.content)"></div>
+            <div v-else class="msg-content">{{ msg.content }}</div>
             <div v-if="msg.created_at" class="msg-time">{{ formatTime(msg.created_at) }}</div>
           </div>
         </div>
@@ -284,6 +285,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { showToast } from '@/utils/toast'
 import { useAIStore } from '@/stores/ai'
+import { marked } from 'marked'
 
 defineOptions({ name: 'AI' })
 
@@ -446,6 +448,7 @@ async function deleteModel(config: any) {
     showToast('无法删除默认模型，请先设置其他模型为默认', 'warning')
     return
   }
+  // confirm() is kept for confirmation dialogs
   if (!confirm(`确认删除模型配置「${config.name}」？`)) return
   try {
     await aiStore.deleteModelConfig(config.id)
@@ -481,6 +484,10 @@ function formatTime(iso?: string) {
   if (!iso) return ''
   const d = new Date(iso)
   return d.toLocaleString('zh-CN')
+}
+
+function renderMarkdown(content: string): string {
+  return marked(content, { breaks: true }) as string
 }
 
 onMounted(() => {
@@ -754,6 +761,89 @@ onMounted(() => {
 .msg-error {
   color: var(--color-critical) !important;
   border-color: rgba(244,67,54,0.2) !important;
+}
+
+.msg-content :deep(pre) {
+  background: #0D1117;
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  padding: var(--space-4);
+  overflow-x: auto;
+  font-size: var(--text-mono-sm);
+  line-height: 1.6;
+  margin: var(--space-3) 0;
+}
+
+.msg-content :deep(code) {
+  background: rgba(0,0,0,0.3);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: var(--text-mono-sm);
+  font-family: var(--font-family-mono);
+}
+
+.msg-content :deep(pre code) {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.msg-content :deep(p) {
+  margin: var(--space-2) 0;
+  line-height: 1.7;
+}
+
+.msg-content :deep(ul), .msg-content :deep(ol) {
+  padding-left: var(--space-5);
+  margin: var(--space-2) 0;
+}
+
+.msg-content :deep(li) {
+  margin: var(--space-1) 0;
+}
+
+.msg-content :deep(h1), .msg-content :deep(h2), .msg-content :deep(h3), .msg-content :deep(h4) {
+  margin: var(--space-4) 0 var(--space-2);
+  color: var(--color-text-primary);
+}
+
+.msg-content :deep(blockquote) {
+  border-left: 3px solid var(--color-accent-500);
+  padding-left: var(--space-4);
+  margin: var(--space-3) 0;
+  color: var(--color-text-secondary);
+  background: rgba(0, 188, 212, 0.05);
+  border-radius: 0 4px 4px 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.msg-content :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: var(--space-3) 0;
+  font-size: var(--text-body-sm);
+}
+
+.msg-content :deep(th), .msg-content :deep(td) {
+  border: 1px solid var(--color-border-default);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+}
+
+.msg-content :deep(th) {
+  background: var(--color-bg-elevated);
+  font-weight: var(--font-weight-semibold);
+}
+
+.msg-content :deep(a) {
+  color: var(--color-accent-500);
+  text-decoration: underline;
+}
+
+.msg-content :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--color-border-subtle);
+  margin: var(--space-4) 0;
 }
 
 .msg-time {

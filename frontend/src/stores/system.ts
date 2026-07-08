@@ -29,6 +29,7 @@ export const useSystemStore = defineStore('system', () => {
   const users = ref<SystemUser[]>([])
   const roles = ref<SystemRole[]>([])
   const auditLogs = ref<AuditLog[]>([])
+  const auditLogsTotal = ref(0)
   const loading = ref(false)
 
   async function fetchUsers() {
@@ -68,19 +69,26 @@ export const useSystemStore = defineStore('system', () => {
     }
   }
 
-  async function fetchAuditLogs() {
+  async function fetchAuditLogs(params?: { keyword?: string; page?: number }) {
     loading.value = true
     try {
-      const res = await api.get<any>('/system/audit-logs')
+      const query = new URLSearchParams()
+      if (params?.keyword) query.set('keyword', params.keyword)
+      if (params?.page) query.set('page', String(params.page))
+      query.set('size', '20')
+      const qs = query.toString()
+      const res = await api.get<any>(`/system/audit-logs${qs ? '?' + qs : ''}`)
       auditLogs.value = res.items || res
+      auditLogsTotal.value = res.total ?? (Array.isArray(res.items || res) ? (res.items || res).length : 0)
     } catch {
       auditLogs.value = getMockAuditLogs()
+      auditLogsTotal.value = getMockAuditLogs().length
     } finally {
       loading.value = false
     }
   }
 
-  return { users, roles, auditLogs, loading, fetchUsers, fetchRoles, fetchAuditLogs }
+  return { users, roles, auditLogs, auditLogsTotal, loading, fetchUsers, fetchRoles, fetchAuditLogs }
 })
 
 function getMockUsers(): SystemUser[] {
