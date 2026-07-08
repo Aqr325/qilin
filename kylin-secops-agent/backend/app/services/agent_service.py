@@ -157,7 +157,7 @@ async def process_batch_events(
         try:
             event_type = event.get("type", "")
             if event_type == "alert":
-                from app.models.alerts import Alert
+                from app.models.alert import Alert
                 import uuid
                 alert = Alert(
                     id=uuid.uuid4(),
@@ -405,6 +405,13 @@ async def upgrade_agents(
     operator: str,
 ) -> dict:
     """升级Agent：持久化升级任务并标记Agent为 upgrading，便于追踪与心跳对账。"""
+    # 路由传入的是 Pydantic AgentUpgradeRequest，统一规整为 dict 以兼容既有逻辑
+    if not isinstance(req, dict):
+        req = {
+            "agent_ids": list(req.agent_ids),
+            "target_version": getattr(req, "version", ""),
+            "package_url": req.package_url,
+        }
     agent_repo = AgentRepository(db)
     agent_ids = req.get("agent_ids", [])
     target_version = req.get("target_version", "")

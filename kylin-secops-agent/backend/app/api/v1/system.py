@@ -199,7 +199,7 @@ async def list_login_logs(
 
 @router.patch("/login-logs/{log_id}", response_model=ApiResponse[LoginLog])
 async def update_login_log(
-    log_id: int,
+    log_id: str,
     req: LoginLogUpdate,
     current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),

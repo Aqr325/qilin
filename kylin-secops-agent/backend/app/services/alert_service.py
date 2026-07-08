@@ -422,35 +422,44 @@ async def get_timeline(
     end_time: Optional[str] = None,
     interval: str = "1h",
 ) -> TimelineData:
-    """Get alert timeline data."""
-    from sqlalchemy import func, select, text
+    """Get alert timeline data (SQLite/PG 兼容：在 Python 端按 interval 分桶)."""
+    from sqlalchemy import select
+    from datetime import datetime as _dt, timezone as _tz
     from app.models.alert import Alert
 
-    query = select(
-        func.date_trunc(text(":interval"), Alert.created_at).label("bucket"),
-        Alert.severity,
-        func.count().label("count"),
-    ).where(Alert.is_deleted == False)
-
+    query = select(Alert.created_at, Alert.severity).where(Alert.is_deleted == False)
     if start_time:
         query = query.where(Alert.created_at >= start_time)
     if end_time:
         query = query.where(Alert.created_at <= end_time)
 
-    query = query.group_by("bucket", Alert.severity).order_by("bucket")
+    # 依据 interval 字符串（如 "1h"/"1d"/"15m"）推导截断粒度
+    unit = "h"
+    if interval:
+        last = interval.strip().lower()[-1]
+        if last in ("m", "d"):
+            unit = last
 
-    result = await db.execute(query, {"interval": interval})
+    def _bucket_key(ts):
+        ts = ts or _dt.now(_tz.utc)
+        if unit == "d":
+            return ts.strftime("%Y-%m-%d")
+        if unit == "m":
+            return ts.strftime("%Y-%m-%d %H:%M")
+        return ts.strftime("%Y-%m-%d %H:00")
+
+    result = await db.execute(query)
     buckets: Dict[str, Dict[str, int]] = {}
     for row in result.all():
-        bucket_key = str(row.bucket)
-        if bucket_key not in buckets:
-            buckets[bucket_key] = {}
-        buckets[bucket_key][row.severity] = row.count
+        key = _bucket_key(row.created_at)
+        buckets.setdefault(key, {})
+        buckets[key][row.severity] = buckets[key].get(row.severity, 0) + 1
 
+    timestamps = sorted(buckets.keys())
     return TimelineData(
-        timestamps=list(buckets.keys()),
+        timestamps=timestamps,
         series=[
-            {"name": sev, "data": [b.get(sev, 0) for b in buckets.values()]}
+            {"name": sev, "data": [buckets[t].get(sev, 0) for t in timestamps]}
             for sev in ["critical", "high", "medium", "low", "info"]
         ],
     )

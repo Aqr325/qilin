@@ -193,7 +193,7 @@
                   </div>
                   <div class="detail-row">
                     <span class="detail-label">API Key</span>
-                    <span class="detail-value detail-key">{{ config.has_api_key ? '●●●●●●●●' + (config.api_key as string).slice(-4, 8) : '未设置' }}</span>
+                    <span class="detail-value detail-key">{{ config.has_api_key ? '●●●●●●●●（已配置）' : '未设置' }}</span>
                   </div>
                 </div>
 

@@ -425,12 +425,12 @@ async def list_login_logs(
 
 async def update_login_log(
     db: AsyncSession,
-    log_id: int,
+    log_id: str,
     req: LoginLogUpdate,
 ) -> LoginLog:
     """Update a login log's status/reason."""
     log_repo = LoginLogRepository(db)
-    log = await log_repo.get(int(log_id))
+    log = await log_repo.get(log_id)
     if not log:
         raise HTTPException(status_code=404, detail="Login log not found")
     update_data = req.model_dump(exclude_unset=True)

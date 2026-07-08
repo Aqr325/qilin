@@ -1,6 +1,6 @@
 # 麒麟OS安全智能运维Agent — 最终交付报告
 
-> 更新于 2026-07-07（覆盖 7/3 功能完善版）
+> 更新于 2026-07-07（含 v2.1.2：前端数据持久化修复与 AgentTask 真实化）
 
 ## 一、项目状态
 
@@ -38,7 +38,18 @@
 
 **交付库修正**：原交付 `kylin_secops.db` 是修复前的遗留半成品（仅 3 个用户、密码为不可见的随机串，导致登不进）。已替换为冒烟测试验证通过的数据库——4 个账号（补齐 viewer）、17 张表齐全、密码统一为 `KylinSecOps@2026`。双保险：即使首次启动注入有意外，已知密码仍可用。
 
-## 四、交付物
+## 四、前端数据持久化与 AgentTask 真实化（v2.1.2，2026-07-07）
+
+**问题**：前端修改的数据（如告警状态、系统设置）切换界面后恢复原样。根因：全局 Pinia `alerts` store 被后台 30s 轮询 / 看板挂载时的重拉覆盖本地编辑。
+
+**修复**：
+1. 前端 `stores/alerts.ts` 新增 `dirtyAlerts`(ref Set)、`localStatus`(Map)、`setAlertStatus(id, status, confirmed)`、`applyLocalOverrides()`；`fetchAlerts` 在赋值后重新套用未确认编辑，防止轮询覆盖。
+2. `AlertsView.vue` 批量/单条状态编辑走 `alertsStore.setAlertStatus`；`SystemView.vue` 保存失败改 toast 反馈；`ProfileView.vue` 保存成功同步 `authStore.user.phone`。
+3. 后端新增 `AgentTask` 模型（含 `0007_add_agent_tasks` 迁移），`agent_service` 的升级/重启由桩改真实落库 `AgentTask`；`policy_service` 策略下发真实写入 `PolicyTarget` 并提升 `Agent.config_version`；`system_service.create_user` 补 `db.refresh` 返回正确角色。
+
+**构建与交付**：重新编译 `backend.exe`（修复 `desktop-build-env` 缺 sqlalchemy 等依赖，产物 27.9MB），刷新交付目录与发布包 `麒麟OS安全运维_桌面程序-v2.1.2.zip`（142.6MB，103 文件）。commit `38df886`，tag `v2.1.2`。
+
+## 五、交付物
 
 | 项目 | 路径 |
 |------|------|
@@ -49,7 +60,7 @@
 | 配置 | `resources/config.json`（含 `seed_password`） |
 | 数据库 | `resources/kylin_secops.db`（已预置 4 个账号，密码 `KylinSecOps@2026`，经验证可登录） |
 
-## 五、默认登录凭证
+## 六、默认登录凭证
 
 | 角色 | 用户名 | 密码 |
 |------|--------|------|
@@ -60,11 +71,11 @@
 
 > 已内置默认密码，登录后建议立即修改。
 
-## 六、运行方式
+## 七、运行方式
 
 - 双击 `麒麟OS安全运维_桌面程序/麒麟OS安全运维.exe`，或运行项目根目录 `启动桌面版.bat`
 - 后端自动启动于 `127.0.0.1:8001`，前端在 Electron 窗口内渲染
 
-## 七、技术栈
+## 八、技术栈
 
 FastAPI + SQLAlchemy(async) + Alembic + SQLite ／ Vue 3 + TypeScript + Vite ／ Electron + PyInstaller
