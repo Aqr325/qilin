@@ -168,6 +168,10 @@ export const useAlertsStore = defineStore('alerts', () => {
     }
   }
 
+  function clearSelection() {
+    selectedAlerts.value = new Set<string>()
+  }
+
   return {
     alerts, total, page, pageSize, loading,
     filterSeverity, filterStatus, filterAgent, searchKeyword,
@@ -175,7 +179,7 @@ export const useAlertsStore = defineStore('alerts', () => {
     pendingCount, inProgressCount, todayNewCount, resolvedCount,
     fetchAlerts, fetchStats, batchUpdateStatus, toggleSelect, toggleSelectAll, setFilter,
     setAlertStatus,
-    startPolling, stopPolling,
+    startPolling, stopPolling, clearSelection,
   }
 })
 

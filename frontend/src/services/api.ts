@@ -10,6 +10,9 @@ interface RequestOptions {
 
 class ApiService {
   private token: string | null = null
+  private refreshToken: string | null = null
+  private isRefreshing = false
+  private pendingRequests: Array<(token: string) => void> = []
 
   setToken(token: string | null) {
     this.token = token
@@ -17,6 +20,14 @@ class ApiService {
 
   getToken(): string | null {
     return this.token
+  }
+
+  setRefreshToken(token: string | null) {
+    this.refreshToken = token
+  }
+
+  getRefreshToken(): string | null {
+    return this.refreshToken
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -41,6 +52,34 @@ class ApiService {
     const response = await fetch(`${BASE_URL}${path}`, config)
 
     if (!response.ok) {
+      if (response.status === 401 && this.refreshToken && !this.isRefreshing) {
+        this.isRefreshing = true
+        try {
+          const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: this.refreshToken }),
+          })
+          if (refreshRes.ok) {
+            const refreshData = await refreshRes.json()
+            this.token = refreshData.data.access_token
+            this.refreshToken = refreshData.data.refresh_token
+            // 重试原请求
+            (config.headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`
+            const retryRes = await fetch(`${BASE_URL}${path}`, config)
+            if (retryRes.ok) {
+              return (await retryRes.json()).data as T
+            }
+          }
+        } catch {
+          // 刷新失败
+        } finally {
+          this.isRefreshing = false
+        }
+        // 刷新失败后清除token并跳转登录
+        this.token = null
+        this.refreshToken = null
+      }
       const error = await response.json().catch(() => ({ message: '请求失败' }))
       throw new Error(error.detail || error.message || `HTTP ${response.status}`)
     }

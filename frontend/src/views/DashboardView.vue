@@ -172,7 +172,10 @@ let trendChart: any = null
 let doughnutChart: any = null
 
 const overview = computed(() => store.overview)
-const agentHealthTotal = computed(() => store.agentHealth.online + store.agentHealth.offline + store.agentHealth.error + store.agentHealth.pending)
+const agentHealthTotal = computed(() => {
+  const h = store.agentHealth
+  return (h?.online ?? 0) + (h?.offline ?? 0) + (h?.error ?? 0) + (h?.pending ?? 0)
+})
 
 const agentHealthItems = computed(() => {
   const total = agentHealthTotal.value || 1
@@ -378,20 +381,18 @@ function initCharts() {
 
 // Watch for data changes and update charts
 watch(() => store.alertTrend, (newTrend) => {
-  if (trendChart && newTrend.length > 0) {
-    trendChart.data.labels = newTrend.map(t => t.date)
-    trendChart.data.datasets[0].data = newTrend.map(t => t.critical)
-    trendChart.data.datasets[1].data = newTrend.map(t => t.high)
-    trendChart.data.datasets[2].data = newTrend.map(t => t.medium)
-    trendChart.update('active')
-  }
+  if (!trendChart || !newTrend || newTrend.length === 0) return
+  trendChart.data.labels = newTrend.map(t => t.date)
+  trendChart.data.datasets[0].data = newTrend.map(t => t.critical)
+  trendChart.data.datasets[1].data = newTrend.map(t => t.high)
+  trendChart.data.datasets[2].data = newTrend.map(t => t.medium)
+  trendChart.update('active')
 }, { deep: true })
 
 watch(() => [store.criticalCount, store.highCount, store.mediumCount, store.lowCount], () => {
-  if (doughnutChart) {
-    doughnutChart.data.datasets[0].data = [store.criticalCount, store.highCount, store.mediumCount, store.lowCount]
-    doughnutChart.update('active')
-  }
+  if (!doughnutChart) return
+  doughnutChart.data.datasets[0].data = [store.criticalCount, store.highCount, store.mediumCount, store.lowCount]
+  doughnutChart.update('active')
 }, { deep: true })
 
 onMounted(async () => {

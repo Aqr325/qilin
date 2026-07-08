@@ -99,7 +99,7 @@
       <button class="action-btn" @click="batchAction('resolved')">标记已处置</button>
       <button class="action-btn" @click="batchAction('acknowledged')">确认处理</button>
       <button class="action-btn" @click="batchAction('false_positive')">标记误报</button>
-      <button class="action-btn" style="margin-left:auto;" @click="alertsStore.selectedAlerts.clear()">取消选择</button>
+      <button class="action-btn" style="margin-left:auto;" @click="alertsStore.clearSelection()">取消选择</button>
     </div>
 
     <!-- Alert Table -->
@@ -291,12 +291,12 @@ async function batchAction(status: string) {
     await alertsApi.batchStatus(ids, status)
     // Server confirmed → reconcile store (drops the local override)
     for (const id of ids) alertsStore.setAlertStatus(id, status as AlertStatus, true)
-    (alertsStore.selectedAlerts as Set<string>).clear()
+    alertsStore.clearSelection()
     await alertsStore.fetchStats()
   } catch {
     // API unavailable → keep optimistic edit; override survives background re-fetch
     for (const id of ids) alertsStore.setAlertStatus(id, status as AlertStatus, false)
-    (alertsStore.selectedAlerts as Set<string>).clear()
+    alertsStore.clearSelection()
   }
 }
 

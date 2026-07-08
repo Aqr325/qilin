@@ -88,7 +88,22 @@ router.beforeEach(async (to, _from, next) => {
 
   // If we don't have a user yet, try loading from stored token
   if (!authStore.isAuthenticated && !to.meta.guest) {
-    await authStore.fetchCurrentUser()
+    try {
+      await authStore.fetchCurrentUser()
+    } catch {
+      authStore.logout()
+      return next('/login')
+    }
+  }
+
+  // 如果token存在但获取用户信息失败（401场景）
+  if (to.meta.requiresAuth !== false && !authStore.isAuthenticated) {
+    try {
+      await authStore.fetchCurrentUser()
+    } catch {
+      authStore.logout()
+      return next({ path: '/login', query: { redirect: to.fullPath } })
+    }
   }
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
