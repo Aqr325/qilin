@@ -34,10 +34,10 @@ class UserRepository(BaseRepository[User]):
         return result.scalar_one_or_none()
 
     async def get_with_roles(self, user_id: uuid.UUID) -> Optional[User]:
-        """Get user with roles loaded."""
+        """Get user with roles and permissions loaded."""
         result = await self.db.execute(
             select(User)
-            .options(selectinload(User.roles))
+            .options(selectinload(User.roles).selectinload(Role.permissions))
             .where(User.id == user_id, User.is_deleted == False)
         )
         return result.scalar_one_or_none()

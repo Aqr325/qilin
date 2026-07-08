@@ -47,6 +47,7 @@ export interface Agent {
   cpu_usage?: number
   memory_usage?: number
   total_memory?: number
+  memory_total?: number
   disk_usage?: number
   cpu_cores: number
   processes_total?: number

@@ -173,4 +173,4 @@ class AgentHeartbeatRepository(BaseRepository[AgentHeartbeat]):
 # Helper for PostgreSQL conditional aggregation
 def case(whens, else_=None):
     from sqlalchemy import case as sa_case
-    return sa_case(*whens, else_=else_)
+    return sa_case(whens, else_=else_)
