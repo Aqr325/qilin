@@ -5,25 +5,24 @@ import api from '@/services/api'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const overview = ref<DashboardOverview>({
-    total_alerts: 12, active_alerts: 11, critical_alerts: 3, resolved_alerts: 1,
-    total_agents: 8, online_agents: 5, offline_agents: 1, active_policies: 0,
-    alerts_today: 10, resolved_today: 1,
+    total_alerts: 0, active_alerts: 0, critical_alerts: 0, resolved_alerts: 0,
+    total_agents: 0, online_agents: 0, offline_agents: 0, active_policies: 0,
+    alerts_today: 0, resolved_today: 0,
     avg_response_time_hours: null, alert_trend: null,
-    // Derived fields for template
-    active_agents: 5, high_severity_alerts: 3, health_score: 94.2,
-    alert_trend_percent: 12.5, agent_trend_percent: 3.2,
-    high_trend_percent: -8.7, health_trend_percent: 0.8,
+    active_agents: 0, high_severity_alerts: 0, health_score: 100,
+    alert_trend_percent: 0, agent_trend_percent: 0,
+    high_trend_percent: 0, health_trend_percent: 0,
   })
   const alertTrend = ref<AlertTrend[]>([])
   const agentHealth = ref<AgentHealthDistribution>({
-    online: 5, offline: 1, error: 0, pending: 2,
+    online: 0, offline: 0, error: 0, pending: 0,
   })
   const loading = ref(false)
 
-  const criticalCount = ref(3)
-  const highCount = ref(4)
-  const mediumCount = ref(4)
-  const lowCount = ref(1)
+const criticalCount = ref(0)
+const highCount = ref(0)
+const mediumCount = ref(0)
+const lowCount = ref(0)
 
   async function fetchOverview() {
     loading.value = true
@@ -37,7 +36,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         health_score: res.total_alerts > 0
           ? Math.round((1 - res.active_alerts / (res.total_alerts + res.active_alerts)) * 100)
           : 100,
-        // TODO: Replace hardcoded trend percentages with real comparison data
+        // 趋势百分比 — 暂无历史对比数据，初始为0
         alert_trend_percent: 0,
         agent_trend_percent: 0,
         high_trend_percent: 0,
@@ -95,27 +94,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
       } else {
         alertTrend.value = Array.isArray(res) ? res : []
       }
-    } catch {
-      // Generate mock 7-day data
-      const trend: AlertTrend[] = []
-      const now = new Date()
-      const criticalData = [12, 8, 15, 10, 14, 11, 12]
-      const highData = [22, 18, 28, 20, 25, 23, 22]
-      const mediumData = [42, 38, 48, 40, 45, 43, 42]
-
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now)
-        d.setDate(d.getDate() - i)
-        const idx = 6 - i
-        trend.push({
-          date: `${d.getMonth() + 1}/${d.getDate()}`,
-          critical: criticalData[idx] || 12,
-          high: highData[idx] || 22,
-          medium: mediumData[idx] || 42,
-          low: 15 + Math.floor(Math.random() * 20),
-        })
-      }
-      alertTrend.value = trend
+    } catch (e) {
+      console.warn('Failed to fetch alert trend, showing empty trend:', e)
+      alertTrend.value = []
     }
   }
 
