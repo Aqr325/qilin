@@ -154,6 +154,9 @@ function startBackend() {
       // Timeout fallback
       setTimeout(() => {
         console.log('[Desktop] Backend startup timeout, proceeding...')
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('backend-timeout')
+        }
         resolve()
       }, 15000)
     } catch (err) {
@@ -220,6 +223,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      webSecurity: true,
     },
     show: false,
     backgroundColor: '#0f1923',

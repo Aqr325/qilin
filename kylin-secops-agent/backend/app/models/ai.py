@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy import (
     DateTime,
+    Boolean,
     Float,
     ForeignKey,
     Integer,
@@ -102,10 +103,10 @@ class AiModelConfig(Base, TimestampMixin):
         Text, nullable=True, comment="系统提示词（可选）"
     )
     is_active: Mapped[bool] = mapped_column(
-        SmallInteger, default=1, server_default="1", comment="是否启用"
+        Boolean, default=1, server_default="1", comment="是否启用"
     )
     is_default: Mapped[bool] = mapped_column(
-        SmallInteger, default=0, server_default="0", comment="是否为默认模型"
+        Boolean, default=0, server_default="0", comment="是否为默认模型"
     )
 
     @validates('api_key')
