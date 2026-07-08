@@ -1,6 +1,7 @@
 """Security utilities: JWT, password hashing, token management."""
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -158,3 +159,34 @@ def generate_agent_token() -> str:
 def generate_mfa_secret() -> str:
     """Generate a TOTP secret for MFA."""
     return secrets.token_hex(20)
+
+
+# ── API Key Encryption ──
+import base64
+from cryptography.fernet import Fernet
+
+
+def get_encryption_key() -> bytes:
+    """从环境变量获取加密密钥，若不存在则使用项目固定密钥。"""
+    key = os.environ.get("AI_API_KEY_ENCRYPTION_KEY")
+    if not key:
+        key = "kylin-secops-ai-key-2026-0708-32bytes!"
+    return base64.urlsafe_b64encode(key.ljust(32).encode()[:32])
+
+
+_fernet = None
+
+
+def _get_fernet():
+    global _fernet
+    if _fernet is None:
+        _fernet = Fernet(get_encryption_key())
+    return _fernet
+
+
+def encrypt_api_key(plain_text: str) -> str:
+    return _get_fernet().encrypt(plain_text.encode()).decode()
+
+
+def decrypt_api_key(cipher_text: str) -> str:
+    return _get_fernet().decrypt(cipher_text.encode()).decode()
