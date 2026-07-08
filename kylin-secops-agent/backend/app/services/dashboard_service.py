@@ -51,72 +51,66 @@ async def get_overview(db: AsyncSession) -> DashboardOverview:
 
 
 async def get_alert_trend(db: AsyncSession, days: int = 7) -> TrendData:
-    """Get alert trend data."""
-    from sqlalchemy import func, text
+    """Get alert trend data (SQLite/PG 兼容：在 Python 端按天分桶)."""
+    from sqlalchemy import select
 
     start = datetime.now(timezone.utc) - timedelta(days=days)
     result = await db.execute(
-        select(
-            func.date_trunc("day", Alert.created_at).label("day"),
-            Alert.severity,
-            func.count().label("count"),
-        )
+        select(Alert.created_at, Alert.severity)
         .where(Alert.created_at >= start, Alert.is_deleted == False)
-        .group_by("day", Alert.severity)
-        .order_by("day")
     )
 
     buckets: Dict[str, Dict[str, int]] = {}
     for row in result.all():
-        day_key = str(row.day)[:10]
-        if day_key not in buckets:
-            buckets[day_key] = {}
-        buckets[day_key][row.severity] = row.count
+        ts = row.created_at or datetime.now(timezone.utc)
+        day_key = ts.strftime("%Y-%m-%d")
+        buckets.setdefault(day_key, {})
+        buckets[day_key][row.severity] = buckets[day_key].get(row.severity, 0) + 1
 
+    labels = sorted(buckets.keys())
     return TrendData(
-        labels=list(buckets.keys()),
+        labels=labels,
         datasets=[
-            {"label": sev, "data": [b.get(sev, 0) for b in buckets.values()]}
+            {"label": sev, "data": [buckets[d].get(sev, 0) for d in labels]}
             for sev in ["critical", "high", "medium", "low", "info"]
         ],
     )
 
 
 async def get_agent_heatmap(db: AsyncSession, hours: int = 24) -> HeatmapData:
-    """Get agent health heatmap."""
+    """Get agent health heatmap (SQLite/PG 兼容：在 Python 端按小时分桶)."""
     from app.models.agent import AgentHeartbeat
 
     start = datetime.now(timezone.utc) - timedelta(hours=hours)
     result = await db.execute(
-        select(
-            AgentHeartbeat.agent_id,
-            func.date_trunc("hour", AgentHeartbeat.received_at).label("hour"),
-            func.avg(AgentHeartbeat.cpu_usage).label("avg_cpu"),
-        )
+        select(AgentHeartbeat.agent_id, AgentHeartbeat.received_at, AgentHeartbeat.cpu_usage)
         .where(AgentHeartbeat.received_at >= start)
-        .group_by(AgentHeartbeat.agent_id, "hour")
     )
 
-    agent_map: Dict[str, Dict[str, float]] = {}
+    agent_map: Dict[str, Dict[str, list]] = {}
     time_slots_set: set = set()
     for row in result.all():
-        agent_id = row.agent_id
-        hour_key = str(row.hour)
+        ts = row.received_at or datetime.now(timezone.utc)
+        hour_key = ts.strftime("%Y-%m-%d %H:00")
         time_slots_set.add(hour_key)
-        if agent_id not in agent_map:
-            agent_map[agent_id] = {}
-        agent_map[agent_id][hour_key] = row.avg_cpu or 0.0
+        agent_map.setdefault(row.agent_id, {}).setdefault(hour_key, [])
+        if row.cpu_usage is not None:
+            agent_map[row.agent_id][hour_key].append(row.cpu_usage)
 
     sorted_agents = sorted(agent_map.keys())[:20]
     sorted_slots = sorted(time_slots_set)
+    data = [
+        [
+            (round(sum(agent_map[a][s]) / len(agent_map[a][s]), 2) if agent_map[a].get(s) else 0.0)
+            for s in sorted_slots
+        ]
+        for a in sorted_agents
+    ]
 
     return HeatmapData(
         time_slots=sorted_slots,
         agents=sorted_agents,
-        data=[
-            [agent_map[a].get(s, 0.0) for s in sorted_slots]
-            for a in sorted_agents
-        ],
+        data=data,
     )
 
 

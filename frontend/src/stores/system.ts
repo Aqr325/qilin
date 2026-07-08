@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '@/services/api'
+import type { AuditLog } from '@/types'
 
 export interface SystemUser {
   id: string

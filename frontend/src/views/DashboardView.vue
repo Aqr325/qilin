@@ -154,6 +154,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAlertsStore } from '@/stores/alerts'
+import Chart from 'chart.js/auto'
 
 defineOptions({ name: 'Dashboard' })
 import { showToast } from '@/utils/toast'
@@ -238,15 +239,10 @@ function nextPage() {
 
 // Chart initialization
 function initCharts() {
-  if (!window.Chart) {
-    setTimeout(initCharts, 200)
-    return
-  }
-
   if (trendChartRef.value) {
     const ctx = trendChartRef.value.getContext('2d')
     if (ctx) {
-      trendChart = new window.Chart(ctx, {
+      trendChart = new Chart(ctx, {
         type: 'line',
         data: {
           labels: store.alertTrend.map(t => t.date),
@@ -326,7 +322,7 @@ function initCharts() {
     const ctx = doughnutChartRef.value.getContext('2d')
     if (ctx) {
       const data = [store.criticalCount, store.highCount, store.mediumCount, store.lowCount]
-      doughnutChart = new window.Chart(ctx, {
+      doughnutChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
           labels: ['严重', '高危', '中危', '低危'],

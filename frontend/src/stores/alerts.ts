@@ -12,6 +12,7 @@ export const useAlertsStore = defineStore('alerts', () => {
   const filterSeverity = ref<AlertSeverity | ''>('')
   const filterStatus = ref<AlertStatus | ''>('')
   const filterAgent = ref('')
+  const filterType = ref('')
   const searchKeyword = ref('')
   const selectedAlerts = ref<Set<string>>(new Set())
 
@@ -72,6 +73,7 @@ export const useAlertsStore = defineStore('alerts', () => {
       if (filterSeverity.value) params.set('severity', filterSeverity.value)
       if (filterStatus.value) params.set('status', filterStatus.value)
       if (filterAgent.value) params.set('agent_id', filterAgent.value)
+      if (filterType.value) params.set('alert_type', filterType.value)
       if (searchKeyword.value) params.set('keyword', searchKeyword.value)
 
       const res = await api.get<PaginatedResponse<Alert>>(`/alerts?${params.toString()}`)
@@ -144,6 +146,7 @@ export const useAlertsStore = defineStore('alerts', () => {
       case 'severity': filterSeverity.value = value as AlertSeverity; break
       case 'status': filterStatus.value = value as AlertStatus; break
       case 'agent': filterAgent.value = value; break
+      case 'type': filterType.value = value; break
       case 'keyword': searchKeyword.value = value; break
     }
     fetchAlerts()
