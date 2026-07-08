@@ -20,4 +20,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // IPC helpers
   getBackendUrl: () => 'http://127.0.0.1:8001',
+
+  // 订阅主进程事件（如后端启动超时降级）
+  onBackendTimeout: (callback) => {
+    ipcRenderer.on('backend-timeout', (_event, ...args) => callback(...args))
+  },
 })

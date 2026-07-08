@@ -14,7 +14,11 @@ import os
 import sys
 from PyInstaller.utils.hooks import collect_submodules
 
-BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+try:
+    BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    # 某些 PyInstaller 调用方式不会向 spec 命名空间注入 __file__，回退到当前工作目录
+    BACKEND_DIR = os.getcwd()
 
 # Collect ALL app/ submodules dynamically
 app_hidden_imports = collect_submodules('app')
@@ -201,7 +205,7 @@ extra_hidden_imports = [
     'cryptography.hazmat.primitives.ciphers',
     'cryptography.hazmat.primitives.ciphers.algorithms',
     'cryptography.hazmat.primitives.ciphers.modes',
-    'cryptography.hazmat.primitives hashes',
+    'cryptography.hazmat.primitives.hashes',
     'cryptography.hazmat.primitives.serialization',
     'cryptography.hazmat.backends',
     'cryptography.hazmat.backends.openssl',

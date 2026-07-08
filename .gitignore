@@ -64,3 +64,5 @@ electron-app/frontend/
 # Vite 前端构建产物
 desktop/frontend/assets/
 frontend/dist/
+# Electron 桌面运行时拷贝的构建产物（打包时由 frontend/dist 同步，不入仓）
+desktop/resources/frontend/

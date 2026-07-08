@@ -1,5 +1,6 @@
 """Database engine and session management."""
 
+import logging
 import uuid
 from typing import AsyncGenerator, Optional
 
@@ -11,6 +12,8 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 # ── Async Engine ──
@@ -106,9 +109,8 @@ async def _ensure_indexes():
 
     # Composite index definitions: (table, columns, index_name, where_clause)
     indexes = [
-        # ── users ──
-        ("users", "role_id", "ix_users_role_id", None),
-        ("user_roles", "user_id, role_id", "ix_user_roles_user_id_role_id", None),
+    # ── users ──
+    ("user_roles", "user_id, role_id", "ix_user_roles_user_id_role_id", None),
         # ── agents ──
         ("agents", "status", "ix_agents_status", None),
         # ── alerts ──
@@ -139,8 +141,7 @@ async def _ensure_indexes():
             try:
                 await conn.execute(sa_text(sql))
             except Exception as e:
-                # SQLite / PostgreSQL may raise on existing index; ignore
-                pass
+                logger.warning("创建索引 %s 失败（可忽略）: %s", name, e)
 
 
 async def init_db():

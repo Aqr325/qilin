@@ -4,11 +4,12 @@ import logging
 import time
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
 
 logger = logging.getLogger(__name__)
 
@@ -394,9 +395,21 @@ async def get_agent_metrics(
     agent_id: str,
     time_range: Optional[str] = None,
 ) -> AgentMetrics:
-    """Get agent metrics."""
+    """Get agent metrics (支持 time_range 窗口过滤)."""
     hb_repo = AgentHeartbeatRepository(db)
     hb = await hb_repo.get_latest(agent_id)
+    if time_range:
+        # 按时间窗口过滤：仅取窗口内最新一次心跳
+        _deltas = {"1h": 3600, "24h": 86400, "7d": 604800, "30d": 2592000}
+        if time_range in _deltas:
+            cutoff = datetime.now(timezone.utc) - timedelta(seconds=_deltas[time_range])
+            result = await db.execute(
+                select(AgentHeartbeat)
+                .where(AgentHeartbeat.agent_id == agent_id, AgentHeartbeat.received_at >= cutoff)
+                .order_by(desc(AgentHeartbeat.received_at))
+                .limit(1)
+            )
+            hb = result.scalar_one_or_none()
     if not hb:
         return AgentMetrics()
     return AgentMetrics(
@@ -467,40 +480,45 @@ async def upgrade_agents(
             "tasks": [],
         }
 
-    tasks: List[AgentTaskModel] = []
-    for aid in agent_ids:
-        agent = await agent_repo.get_by_agent_id(aid)
-        from_version = agent.agent_version if agent else None
-        if agent:
-            # 标记为升级中；Agent下次心跳上报会自动恢复为 online
-            agent.status = "upgrading"
-        task = AgentTaskModel(
-            agent_id=aid,
-            task_type="upgrade",
-            status="pending",
-            params={
-                "from_version": from_version,
-                "target_version": target_version,
-                "package_url": package_url,
-            },
-            created_by=str(operator) if operator else None,
-        )
-        db.add(task)
-        tasks.append(task)
-
-        db.add(AuditLog(
-            id=uuid.uuid4(),
-            user_id=None,
-            username=str(operator) if operator else "system",
-            action="agent_upgrade",
-            resource_type="agent",
-            resource_id=aid,
-            detail=f"升级Agent {aid} 到版本 {target_version}",
-            ip_address="",
-            status="success",
-        ))
-
-    await db.flush()
+    try:
+        tasks: List[AgentTaskModel] = []
+        for aid in agent_ids:
+            agent = await agent_repo.get_by_agent_id(aid)
+            from_version = agent.agent_version if agent else None
+            if agent:
+                # 标记为升级中；Agent下次心跳上报会自动恢复为 online
+                agent.status = "upgrading"
+            task = AgentTaskModel(
+                agent_id=aid,
+                task_type="upgrade",
+                status="pending",
+                params={
+                    "from_version": from_version,
+                    "target_version": target_version,
+                    "package_url": package_url,
+                },
+                created_by=str(operator) if operator else None,
+            )
+            db.add(task)
+            tasks.append(task)
+    
+            db.add(AuditLog(
+                id=uuid.uuid4(),
+                user_id=None,
+                username=str(operator) if operator else "system",
+                action="agent_upgrade",
+                resource_type="agent",
+                resource_id=aid,
+                detail=f"升级Agent {aid} 到版本 {target_version}",
+                ip_address="",
+                status="success",
+            ))
+    
+        await db.flush()
+    except Exception:
+        # 批量升级任一步失败则整体回滚，避免部分 Agent 标记为 upgrading 而任务缺失
+        await db.rollback()
+        raise
     task_ids = [t.id for t in tasks]
     return {
         "task_id": task_ids[0] if task_ids else "",

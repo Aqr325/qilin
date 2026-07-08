@@ -6,6 +6,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Set
 from fastapi import WebSocket, WebSocketDisconnect
+from app.core.config import settings
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

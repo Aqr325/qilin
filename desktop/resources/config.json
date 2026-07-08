@@ -29,7 +29,7 @@
         "port": 5173
     },
     "desktop": {
-        "version": "2.1.0",
+        "version": "2.3.1",
         "project_name": "麒麟OS安全智能运维Agent",
         "icon_path": "./icon.png",
         "auto_start_backend": true,

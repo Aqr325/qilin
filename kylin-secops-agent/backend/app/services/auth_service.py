@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -15,6 +16,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.audit import LoginLog
+from app.models.user import User
 from app.repositories.user_repo import UserRepository, PermissionRepository
 from app.schemas.auth import LoginResponse, UserProfile
 from app.schemas.common import ApiResponse
@@ -45,7 +47,11 @@ async def login(
     """Authenticate user and return tokens."""
     user_repo = UserRepository(db)
 
-    user = await user_repo.get_by_username(username)
+    # 对目标用户行加锁（SELECT ... FOR UPDATE），避免并发登录竞态导致锁计数器错乱
+    result = await db.execute(
+        select(User).where(User.username == username).with_for_update()
+    )
+    user = result.scalar_one_or_none()
     if not user:
         await _record_login_log(db, username, "failed", ip_address, user_agent,
                                 failure_reason="user_not_found")
