@@ -138,6 +138,17 @@ function startBackend() {
       backendProcess.on('exit', (code) => {
         console.log(`[Desktop] Backend exited with code ${code}`)
         backendProcess = null
+        // Auto-restart backend if it crashed unexpectedly (max 3 retries)
+        if (code !== 0 && code !== null) {
+          const restartCount = (global.__backendRestartCount || 0) + 1
+          global.__backendRestartCount = restartCount
+          if (restartCount <= 3) {
+            console.log(`[Desktop] Restarting backend (attempt ${restartCount}/3)...`)
+            setTimeout(() => startBackendInternal(), 1000)
+          } else {
+            console.error('[Desktop] Backend crashed 3 times, giving up.')
+          }
+        }
       })
 
       // Timeout fallback
@@ -277,6 +288,15 @@ function createTray() {
   ])
   tray.setContextMenu(contextMenu)
   tray.on('double-click', () => { mainWindow && mainWindow.show() && mainWindow.focus() })
+}
+
+// ════════════════════════════════════════════
+// Single Instance Lock
+// ════════════════════════════════════════════
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  console.log(`[Desktop] Another instance is already running, quitting.`)
+  app.quit()
 }
 
 // ════════════════════════════════════════════
