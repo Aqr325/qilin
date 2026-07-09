@@ -76,7 +76,7 @@ class Role(Base, TimestampMixin):
         foreign_keys=[user_roles.c.role_id, user_roles.c.user_id]
     )
     permissions: Mapped[List["Permission"]] = relationship(
-        "Permission", secondary=role_permissions, back_populates="roles", lazy="select",
+        "Permission", secondary=role_permissions, back_populates="roles", lazy="selectin",
         foreign_keys=[role_permissions.c.role_id, role_permissions.c.permission_id]
     )
 
@@ -108,7 +108,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     )
 
     roles: Mapped[List["Role"]] = relationship(
-        "Role", secondary=user_roles, back_populates="users", lazy="select",
+        "Role", secondary=user_roles, back_populates="users", lazy="selectin",
         foreign_keys=[user_roles.c.user_id, user_roles.c.role_id]
     )
 

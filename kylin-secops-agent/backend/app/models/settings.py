@@ -14,7 +14,7 @@ class SystemSetting(Base):
     __tablename__ = "system_settings"
 
     id: Mapped[int] = mapped_column(
-        BigInteger, primary_key=True, autoincrement=True
+        Integer, primary_key=True, autoincrement=True
     )
     mfa_enforced_roles: Mapped[str] = mapped_column(
         Text, default="[]", comment="MFA强制角色列表JSON"

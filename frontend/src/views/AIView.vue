@@ -77,7 +77,7 @@
             </svg>
           </div>
           <div class="msg-bubble">
-            <div v-if="msg.role === 'ai'" class="msg-content" v-html="renderMarkdown(msg.content)"></div>
+            <div v-if="msg.role === 'ai'" class="msg-content" v-html="sanitizeHtml(renderMarkdown(msg.content))"></div>
             <div v-else class="msg-content">{{ msg.content }}</div>
             <div v-if="msg.created_at" class="msg-time">{{ formatTime(msg.created_at) }}</div>
           </div>
@@ -286,6 +286,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { showToast } from '@/utils/toast'
 import { useAIStore } from '@/stores/ai'
 import { marked } from 'marked'
+import { sanitizeHtml } from '../utils/sanitize'
 
 defineOptions({ name: 'AI' })
 
