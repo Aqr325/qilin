@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.ai import AiConversation, AiModelConfig
-from app.core.security import decrypt_api_key
+from app.core.security import decrypt_api_key, encrypt_api_key
 from app.schemas.ai import (
     AIFeedbackRequest,
     AIPlaybookResponse,
@@ -426,7 +426,7 @@ async def create_model_config(
         provider=req.provider,
         model=req.model,
         api_url=api_url,
-        api_key=req.api_key,
+        api_key=encrypt_api_key(req.api_key) if req.api_key else None,
         temperature=req.temperature,
         max_tokens=req.max_tokens,
         system_prompt=req.system_prompt,
@@ -478,7 +478,7 @@ async def update_model_config(
     if req.api_url is not None:
         config.api_url = req.api_url
     if req.api_key is not None:
-        config.api_key = req.api_key
+        config.api_key = encrypt_api_key(req.api_key)
     if req.temperature is not None:
         config.temperature = req.temperature
     if req.max_tokens is not None:

@@ -1,5 +1,6 @@
 """Auth service: login, token management, password operations."""
 
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -16,11 +17,14 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.core.token_blacklist import token_blacklist
 from app.models.audit import LoginLog
 from app.models.user import User, Role
 from app.repositories.user_repo import UserRepository, PermissionRepository
 from app.schemas.auth import LoginResponse, UserProfile
 from app.schemas.common import ApiResponse
+
+logger = logging.getLogger(__name__)
 
 
 def parse_time_range(time_range: str) -> Optional[datetime]:
@@ -136,34 +140,57 @@ async def login(
 
 
 async def refresh_token(db: AsyncSession, refresh_token_str: str) -> dict:
-    """Refresh access token using refresh token."""
+    """Refresh access token using refresh token with rotation.
+
+    Token rotation: the used refresh token is blacklisted after successful
+    refresh, preventing replay attacks. The caller receives a fresh pair.
+    """
     try:
         payload = decode_token(refresh_token_str)
-        if payload.get("type") != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type",
-            )
-        user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
-            )
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token expired or invalid",
         )
 
-    # Verify user still exists
+    # Check token type
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type",
+        )
+
+    user_id = payload.get("sub")
+    token_jti = payload.get("jti")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+
+    # Check if this refresh token has already been used (blacklisted)
+    if token_jti and token_blacklist.is_blacklisted(token_jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has already been used or revoked",
+        )
+
+    # Verify user still exists and is active (eager-load roles for token claims)
     user_repo = UserRepository(db)
-    user = await user_repo.get(uuid.UUID(user_id))
+    user = await user_repo.get_with_roles(uuid.UUID(user_id))
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or disabled",
         )
+
+    # Rotate: blacklist the old refresh token before issuing new one
+    if token_jti:
+        # Blacklist expires with the original token's expiry
+        from datetime import datetime as dt, timezone as dt_tz, timedelta
+        expires_at = dt.fromtimestamp(payload.get("exp", 0), tz=dt_tz.utc)
+        token_blacklist.blacklist(token_jti, expires_at)
+        logger.info("Refresh token rotated (blacklisted): jti=%s", token_jti[:8])
 
     extra_claims = {
         "username": user.username,

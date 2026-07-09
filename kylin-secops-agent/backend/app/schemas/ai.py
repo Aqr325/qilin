@@ -170,6 +170,8 @@ class AiModelConfigCreate(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="温度参数")
     max_tokens: int = Field(default=4096, ge=1, le=128000, description="最大Token数")
     system_prompt: Optional[str] = Field(None, description="系统提示词")
+    is_active: Optional[bool] = Field(None, description="是否启用")
+    is_default: Optional[bool] = Field(None, description="是否设为默认模型")
 
 
 class AiModelConfigUpdate(BaseModel):

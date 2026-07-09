@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 
@@ -11,6 +11,7 @@ from app.api.v1 import api_router
 from app.core.config import settings
 from app.core.database import engine
 from app.middleware.request_id import RequestIDMiddleware
+from app.middleware.rate_limit import rate_limit_middleware
 
 
 @asynccontextmanager
@@ -49,15 +50,22 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Agent-Token"],
 )
 app.add_middleware(RequestIDMiddleware)
+app.add_middleware(rate_limit_middleware)
 
 
 # ── Mount Routers ──
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 
-# ── Custom Doc Endpoints ──
+# ── Custom Doc Endpoints (only in debug/dev mode) ──
 @app.get("/docs", include_in_schema=False)
 async def swagger_ui():
+    """Swagger UI — only available when DEBUG is enabled."""
+    if not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API documentation is disabled in production",
+        )
     return get_swagger_ui_html(
         openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
         title=f"{settings.PROJECT_NAME} - Swagger UI",
@@ -66,6 +74,12 @@ async def swagger_ui():
 
 @app.get("/redoc", include_in_schema=False)
 async def redoc_ui():
+    """ReDoc UI — only available when DEBUG is enabled."""
+    if not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API documentation is disabled in production",
+        )
     return get_redoc_html(
         openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
         title=f"{settings.PROJECT_NAME} - ReDoc",

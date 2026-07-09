@@ -43,6 +43,8 @@ if not JWT_KEY:
 REDIS_ENABLED = redis_cfg.get('enabled', False)
 REDIS_HOST = redis_cfg.get('host', '') if REDIS_ENABLED else ''
 DEBUG = be.get('debug', False)
+# Top-level seed_password → KYLIN_SEED_PASSWORD (used by DB seed for default accounts)
+SEED_PASSWORD = config.get('seed_password', '')
 
 # Ensure data/ directory exists
 data_dir = os.path.join(EXE_DIR, desktop.get('data_directory', './data'))
@@ -65,14 +67,15 @@ else:
     DB_URL = f"sqlite+aiosqlite:///{abs_db}"
 
 # ══════════════════════════════════════════════════════════════
-# 2. Env overrides — feed into pydantic-settings
+# 2. Env overrides — config.json values as fallback (respect env vars)
 # ══════════════════════════════════════════════
 os.environ.setdefault("JWT_ALGORITHM", JWT_ALGO)
 os.environ.setdefault("JWT_SECRET_KEY", JWT_KEY)
 os.environ.setdefault("REDIS_HOST", REDIS_HOST)
 os.environ.setdefault("DEBUG", str(DEBUG))
 os.environ.setdefault("EXE_DIR", EXE_DIR)
-os.environ["DATABASE_URL"] = DB_URL
+os.environ.setdefault("KYLIN_SEED_PASSWORD", SEED_PASSWORD)
+os.environ.setdefault("DATABASE_URL", DB_URL)  # respect env var DATABASE_URL
 
 # ══════════════════════════════════════════════════════════════
 # 3. PostgreSQL → SQLite patches (must run before app imports)
