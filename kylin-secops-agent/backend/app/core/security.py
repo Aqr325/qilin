@@ -2,6 +2,7 @@
 
 import logging
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -33,8 +34,36 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # ── JWT Token Management ──
 
+def _get_jwt_algorithm() -> str:
+    """Auto-detect JWT algorithm based on available keys.
+
+    RS256 requires a real RSA keypair; HS256 works with a symmetric secret.
+    This prevents the mismatch where config says RS256 but only a secret key
+    is available (fallback path that actually uses HS256 signing).
+    """
+    private_key = settings.JWT_PRIVATE_KEY
+    public_key = settings.JWT_PUBLIC_KEY
+
+    if private_key and public_key:
+        return settings.JWT_ALGORITHM  # RS256 (as configured)
+
+    if settings.JWT_PRIVATE_KEY_PATH and settings.JWT_PUBLIC_KEY_PATH:
+        try:
+            with open(settings.JWT_PRIVATE_KEY_PATH, "r"):
+                pass
+            with open(settings.JWT_PUBLIC_KEY_PATH, "r"):
+                pass
+            return settings.JWT_ALGORITHM  # RS256 (as configured)
+        except FileNotFoundError:
+            logger.warning("JWT key files not found, falling back to HS256")
+
+    # Fallback: no RSA keys → HS256 with symmetric secret
+    logger.info("Using HS256 JWT signing (development mode)")
+    return "HS256"
+
+
 def _get_jwt_key() -> Tuple[str, str]:
-    """Get private and public keys.
+    """Get signing/verification keys and algorithm.
 
     Priority:
     1. From environment variables (JWT_PRIVATE_KEY / JWT_PUBLIC_KEY)
@@ -58,7 +87,6 @@ def _get_jwt_key() -> Tuple[str, str]:
             logger.warning("JWT key files not found, falling back to HS256")
 
     # Fallback: use HS256 with secret key
-    logger.info("Using HS256 JWT signing (development mode)")
     return settings.JWT_SECRET_KEY, settings.JWT_SECRET_KEY
 
 
@@ -68,43 +96,48 @@ def create_access_token(
 ) -> str:
     """Create a JWT access token (short-lived)."""
     key, _ = _get_jwt_key()
+    algorithm = _get_jwt_algorithm()
     expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
         "iat": now,
         "exp": now + expires_delta,
+        "jti": str(uuid.uuid4()),
         "type": "access",
         "token_type": settings.JWT_TOKEN_TYPE,
     }
     if extra_claims:
         payload.update(extra_claims)
-    return jwt.encode(payload, key, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(payload, key, algorithm=algorithm)
 
 
 def create_refresh_token(subject: str) -> str:
     """Create a JWT refresh token (long-lived)."""
     key, _ = _get_jwt_key()
+    algorithm = _get_jwt_algorithm()
     expires_delta = timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS)
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
         "iat": now,
         "exp": now + expires_delta,
+        "jti": str(uuid.uuid4()),
         "type": "refresh",
         "token_type": settings.JWT_TOKEN_TYPE,
     }
-    return jwt.encode(payload, key, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(payload, key, algorithm=algorithm)
 
 
 def decode_token(token: str) -> Dict[str, Any]:
     """Decode and verify a JWT token."""
     _, public_key = _get_jwt_key()
+    algorithm = _get_jwt_algorithm()
     try:
         payload = jwt.decode(
             token,
             public_key,
-            algorithms=[settings.JWT_ALGORITHM],
+            algorithms=[algorithm],
             options={"verify_exp": True},
         )
         return payload
