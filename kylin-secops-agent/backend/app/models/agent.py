@@ -98,7 +98,7 @@ class AgentHeartbeat(Base):
     __tablename__ = "agent_heartbeats"
 
     id: Mapped[int] = mapped_column(
-        BigInteger, primary_key=True, autoincrement=True
+        Integer, primary_key=True, autoincrement=True
     )
     agent_id: Mapped[str] = mapped_column(
         String(128), nullable=False, index=True, comment="Agent标识"

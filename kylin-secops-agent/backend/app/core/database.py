@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
+from sqlalchemy import event
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,24 @@ def _create_engine():
 
 
 engine = _create_engine()
+
+
+# ── SQLite Pragmas: FK enforcement, WAL concurrency, busy timeout ──
+@event.listens_for(engine.sync_engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, conn_record):
+    """Per-connection pragmas (SQLite only).
+
+    - foreign_keys=ON  -> ON DELETE CASCADE actually fires
+    - journal_mode=WAL -> concurrent readers/writers instead of whole-DB write lock
+    - busy_timeout     -> avoid 'database is locked' under concurrent heartbeats
+    """
+    cur = dbapi_conn.cursor()
+    try:
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=5000")
+    finally:
+        cur.close()
 
 
 # ── Session Factory ──
@@ -104,38 +124,48 @@ async def _ensure_indexes():
     """Create additional indexes that are not part of ORM model definitions.
 
     These indexes target high-frequency query patterns for better performance.
+    Tuple shape: (table, columns, index_name, where_clause, unique)
     """
     from sqlalchemy import text as sa_text
 
-    # Composite index definitions: (table, columns, index_name, where_clause)
     indexes = [
-    # ── users ──
-    ("user_roles", "user_id, role_id", "ix_user_roles_user_id_role_id", None),
+        # ── users ──
+        ("user_roles", "user_id, role_id", "ix_user_roles_user_id_role_id", None, False),
         # ── agents ──
-        ("agents", "status", "ix_agents_status", None),
+        ("agents", "status", "ix_agents_status", None, False),
         # ── alerts ──
-        ("alerts", "severity, status", "ix_alerts_severity_status", None),
-        ("alerts", "status", "ix_alerts_status", None),
+        ("alerts", "severity, status", "ix_alerts_severity_status", None, False),
+        ("alerts", "status", "ix_alerts_status", None, False),
+        ("alerts", "created_at", "ix_alerts_created_at", None, False),
+        ("alerts", "alert_seq", "ix_alerts_alert_seq", None, True),
         # ── agent_heartbeats (used as agent_events surrogate) ──
-        ("agent_heartbeats", "agent_id, received_at", "ix_agent_heartbeats_agent_time", None),
-        ("agent_heartbeats", "received_at", "ix_agent_heartbeats_received_at", None),
+        ("agent_heartbeats", "agent_id, received_at", "ix_agent_heartbeats_agent_time", None, False),
+        ("agent_heartbeats", "received_at", "ix_agent_heartbeats_received_at", None, False),
         # ── audit_logs ──
-        ("audit_logs", "action, resource_type, created_at", "ix_audit_logs_action_resource_time", None),
-        ("audit_logs", "user_id, created_at", "ix_audit_logs_user_id_created_at", None),
+        ("audit_logs", "action, resource_type, created_at", "ix_audit_logs_action_resource_time", None, False),
+        ("audit_logs", "user_id, created_at", "ix_audit_logs_user_id_created_at", None, False),
+        ("audit_logs", "resource_id", "ix_audit_logs_resource_id", None, False),
         # ── login_logs ──
-        ("login_logs", "username, login_at", "ix_login_logs_username_login_at", None),
-        ("login_logs", "ip_address, login_at", "ix_login_logs_ip_login_at", None),
+        ("login_logs", "username, login_at", "ix_login_logs_username_login_at", None, False),
+        ("login_logs", "ip_address, login_at", "ix_login_logs_ip_login_at", None, False),
+        ("login_logs", "login_at", "ix_login_logs_login_at", None, False),
         # ── policies ──
-        ("policies", "policy_type, status", "ix_policies_type_status", None),
-        ("policies", "status", "ix_policies_status", None),
+        ("policies", "policy_type, status", "ix_policies_type_status", None, False),
+        ("policies", "status", "ix_policies_status", None, False),
         # ── policy_targets ──
-        ("policy_targets", "policy_id, agent_id", "ix_policy_targets_policy_agent", None),
-        ("policy_targets", "agent_id, status", "ix_policy_targets_agent_status", None),
+        ("policy_targets", "policy_id, agent_id", "ix_policy_targets_policy_agent", None, False),
+        ("policy_targets", "agent_id, status", "ix_policy_targets_agent_status", None, False),
+        # ── policy_versions ──
+        ("policy_versions", "policy_id", "ix_policy_versions_policy_id", None, False),
+        # ── alert_status_history ──
+        ("alert_status_history", "alert_id, created_at", "ix_alert_status_history_alert_time", None, False),
+        ("alert_status_history", "operator_id", "ix_alert_status_history_operator_id", None, False),
     ]
 
     async with engine.begin() as conn:
-        for table, cols, name, where in indexes:
-            sql = f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({cols})"
+        for table, cols, name, where, unique in indexes:
+            kw = "UNIQUE INDEX" if unique else "INDEX"
+            sql = f"CREATE {kw} IF NOT EXISTS {name} ON {table} ({cols})"
             if where:
                 sql += f" WHERE {where}"
             try:
@@ -144,10 +174,59 @@ async def _ensure_indexes():
                 logger.warning("创建索引 %s 失败（可忽略）: %s", name, e)
 
 
+async def _migrate_bigint_pk():
+    """SQLite-only schema fix.
+
+    Tables created (pre v2.3.3) with a BigInteger primary key cannot auto-assign
+    a rowid on INSERT (SQLite only honours INTEGER PRIMARY KEY as the rowid alias),
+    so every write to agent_heartbeats / alert_status_history / policy_targets /
+    system_settings failed with NOT NULL. Rebuild any such table with an INTEGER
+    PK (auto-increment rowid alias), preserving existing rows.
+
+    Implementation note: we reuse the table's own CREATE TABLE statement (read from
+    sqlite_master) and replace the single BIGINT PK column with INTEGER, rather than
+    asking SQLAlchemy to re-emit DDL (its custom INET/JSONB types don't compile
+    cleanly for SQLite DDL generation). The rest of the schema is preserved verbatim.
+    """
+    targets = ["agent_heartbeats", "alert_status_history", "policy_targets", "system_settings"]
+    from sqlalchemy import text
+
+    async with engine.begin() as conn:
+        for name in targets:
+            res = await conn.execute(
+                text("SELECT sql FROM sqlite_master WHERE type='table' AND name=:n"),
+                {"n": name},
+            )
+            row = res.fetchone()
+            if not row or not row[0] or "BIGINT" not in row[0].upper():
+                continue  # no table, or already INTEGER PK -> nothing to do
+            # Exactly one BIGINT column exists per target table (the id PK).
+            new_sql = row[0].replace("BIGINT", "INTEGER").replace("bigint", "INTEGER")
+            old = f"{name}__mig_old"
+            try:
+                await conn.execute(text(f'ALTER TABLE "{name}" RENAME TO "{old}"'))
+                await conn.execute(text(new_sql))
+                cols_res = await conn.execute(text(f"PRAGMA table_info('{old}')"))
+                csv = ", ".join(f'"{c[1]}"' for c in cols_res.fetchall())
+                try:
+                    await conn.execute(text(f'INSERT INTO "{name}" ({csv}) SELECT {csv} FROM "{old}"'))
+                    await conn.execute(text(f'DROP TABLE "{old}"'))
+                    logger.info("迁移 BIGINT PK -> INTEGER PK: %s", name)
+                except Exception as copy_err:
+                    await conn.execute(text(f'DROP TABLE IF EXISTS "{name}"'))
+                    await conn.execute(text(f'ALTER TABLE "{old}" RENAME TO "{name}"'))
+                    logger.warning("迁移 %s 数据复制失败，已回退: %s", name, copy_err)
+            except Exception as e:
+                logger.warning("迁移 %s 结构变更失败（保留原表）: %s", name, e)
+
+
 async def init_db():
-    """Create all tables, indexes, and seed default roles/permissions/users."""
+    """Create all tables, migrate schema, build indexes, seed defaults."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # ── Migrate legacy BIGINT PK tables (SQLite auto-increment fix) ──
+    await _migrate_bigint_pk()
 
     # ── Create indexes ──
     await _ensure_indexes()

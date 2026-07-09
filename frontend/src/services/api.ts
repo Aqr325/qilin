@@ -103,13 +103,6 @@ class ApiService {
   delete<T>(path: string): Promise<T> {
     return this.request<T>(path, { method: 'DELETE' })
   }
-
-  // Mock data helper - returns mock data when API is unavailable
-  mock<T>(data: T): Promise<T> {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(data), 300 + Math.random() * 200)
-    })
-  }
 }
 
 export const api = new ApiService()

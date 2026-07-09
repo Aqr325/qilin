@@ -47,7 +47,15 @@ export function toast(option: string | ToastOption) {
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     animation: toast-in 0.25s ease;
   `
-  el.innerHTML = `<span style="color:${colors[toastType]};font-weight:bold">${icons[toastType]}</span><span>${message}</span>`
+  // Build with textContent only (no innerHTML) to avoid XSS from untrusted messages.
+  const iconSpan = document.createElement('span')
+  iconSpan.style.color = colors[toastType]
+  iconSpan.style.fontWeight = 'bold'
+  iconSpan.textContent = icons[toastType]
+  const msgSpan = document.createElement('span')
+  msgSpan.textContent = message
+  el.appendChild(iconSpan)
+  el.appendChild(msgSpan)
 
   ensureContainer().appendChild(el)
   setTimeout(() => {

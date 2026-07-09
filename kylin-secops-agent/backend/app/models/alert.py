@@ -122,7 +122,7 @@ class AlertStatusHistory(Base):
     __tablename__ = "alert_status_history"
 
     id: Mapped[int] = mapped_column(
-        BigInteger, primary_key=True, autoincrement=True
+        Integer, primary_key=True, autoincrement=True
     )
     alert_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("alerts.id", ondelete="CASCADE"),

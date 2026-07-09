@@ -64,7 +64,8 @@ class Settings(BaseSettings):
     @classmethod
     def validate_jwt_secret_key(cls, v: str | None) -> str:
         if not v or v == "your-secret-key-change-in-production":
-            from app.core.logging import logger
+            import logging
+            logger = logging.getLogger("kylin.config")
             logger.critical("JWT_SECRET_KEY 未设置！请通过环境变量 JWT_SECRET_KEY 设置一个固定的密钥。")
             raise ValueError("JWT_SECRET_KEY 必须通过环境变量设置，不允许自动生成")
         return v

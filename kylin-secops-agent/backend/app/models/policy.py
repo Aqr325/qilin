@@ -117,7 +117,7 @@ class PolicyTarget(Base):
     __tablename__ = "policy_targets"
 
     id: Mapped[int] = mapped_column(
-        BigInteger, primary_key=True, autoincrement=True
+        Integer, primary_key=True, autoincrement=True
     )
     policy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("policies.id", ondelete="CASCADE"),

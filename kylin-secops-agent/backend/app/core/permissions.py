@@ -256,12 +256,14 @@ def require_roles(roles: List[str]):
 
 
 # ── Get current user from request ──
-# (the actual implementation is in dependencies.py)
+# The real implementation lives in api/deps.py. Re-export it here so that
+# require_permission() (and any other caller in this module) resolves to the
+# working dependency instead of a no-op placeholder. Without this, every
+# permission-guarded route returned 401 because Depends(get_current_user)
+# bound to the placeholder, which always returned None.
+
+from app.api.deps import get_current_user  # noqa: E402
+
 
 class CurrentUser:
     """Placeholder for type hints. The actual dependency is in api/deps.py."""
-
-
-def get_current_user():
-    """Placeholder - actual implementation in api/deps.py."""
-    pass
