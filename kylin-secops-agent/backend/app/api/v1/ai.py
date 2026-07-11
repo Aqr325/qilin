@@ -13,6 +13,8 @@ from app.schemas.ai import (
     AIQueryResponse,
     AISuggestRequest,
     AISuggestion,
+    AiModelTestRequest,
+    AiModelTestResponse,
     AiModelConfig,
     AiModelConfigCreate,
     AiModelConfigUpdate,
@@ -127,6 +129,17 @@ async def create_model_config(
 ):
     """创建模型配置."""
     result = await ai_service.create_model_config(db, req, user_id=current_user["id"])
+    return ApiResponse(data=result)
+
+
+@router.post("/model-configs/test", response_model=ApiResponse[AiModelTestResponse])
+async def test_model_config_endpoint(
+    req: AiModelTestRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """测试模型连通性（可使用已保存配置或临时参数）."""
+    result = await ai_service.test_model_config(db, req, user_id=current_user["id"])
     return ApiResponse(data=result)
 
 

@@ -200,6 +200,9 @@
 
                 <div class="model-card-actions">
                   <button class="action-btn" @click="openModelDialog(config)">编辑</button>
+                  <button class="action-btn action-test" @click="testSavedConfig(config)" :disabled="testingId === config.id">
+                    {{ testingId === config.id ? '测试中...' : '测试' }}
+                  </button>
                   <button v-if="!config.is_default" class="action-btn" @click="setDefault(config.id)">设为默认</button>
                   <button class="action-btn action-toggle" :class="{ disabled: !config.is_active }" @click="toggleActive(config)">
                     {{ config.is_active ? '禁用' : '启用' }}
@@ -270,10 +273,20 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="action-btn" @click="closeModelDialog">取消</button>
-            <button class="btn-primary" @click="saveConfig" :disabled="configSaving">
-              {{ configSaving ? '保存中...' : '保存' }}
-            </button>
+            <div class="footer-left">
+              <button class="action-btn btn-test" @click="testCurrentConfig" :disabled="testing">
+                {{ testing ? '测试中...' : '测试连接' }}
+              </button>
+              <span v-if="testOk !== null" :class="['test-result', testOk ? 'ok' : 'fail']">
+                {{ testOk ? '✓ ' : '✗ ' }}{{ testMsg }}
+              </span>
+            </div>
+            <div class="footer-right">
+              <button class="action-btn" @click="closeModelDialog">取消</button>
+              <button class="btn-primary" @click="saveConfig" :disabled="configSaving">
+                {{ configSaving ? '保存中...' : '保存' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -299,6 +312,10 @@ const showSettings = ref(false)
 const showModelDialog = ref(false)
 const editingConfig = ref<any>(null)
 const configSaving = ref(false)
+const testing = ref(false)
+const testOk = ref<boolean | null>(null)
+const testMsg = ref('')
+const testingId = ref<string | null>(null)
 const configForm = ref({
   name: '',
   provider: 'openai',
@@ -367,6 +384,8 @@ function openModelDialog(config?: any) {
       system_prompt: '',
     }
   }
+  testOk.value = null
+  testMsg.value = ''
   showModelDialog.value = true
 }
 
@@ -428,6 +447,52 @@ async function saveConfig() {
     showToast(e.message || '保存失败', 'error')
   } finally {
     configSaving.value = false
+  }
+}
+
+async function testCurrentConfig() {
+  const f = configForm.value
+  if (!f.provider || !f.model) {
+    showToast('请先填写提供商和模型标识', 'warning')
+    return
+  }
+  testing.value = true
+  testOk.value = null
+  testMsg.value = ''
+  try {
+    // 编辑态且未重新输入 Key 时，用已保存配置（含解密后的 Key）测试；否则测表单当前值
+    const useStored = !!editingConfig.value && !f.api_key
+    const data = useStored
+      ? { config_id: editingConfig.value.id }
+      : {
+          provider: f.provider,
+          model: f.model,
+          api_url: f.api_url || undefined,
+          api_key: f.api_key || undefined,
+        }
+    const res = await aiStore.testModelConfig(data)
+    testOk.value = res.ok
+    testMsg.value = res.ok ? `连接成功（${res.latency_ms}ms）` : res.message
+  } catch (e: any) {
+    testOk.value = false
+    testMsg.value = e.message || '测试失败'
+  } finally {
+    testing.value = false
+  }
+}
+
+async function testSavedConfig(config: any) {
+  testingId.value = config.id
+  try {
+    const res = await aiStore.testModelConfig({ config_id: config.id })
+    showToast(
+      res.ok ? `「${config.name}」连接成功（${res.latency_ms}ms）` : `「${config.name}」测试失败：${res.message}`,
+      res.ok ? 'success' : 'error',
+    )
+  } catch (e: any) {
+    showToast(e.message || '测试失败', 'error')
+  } finally {
+    testingId.value = null
   }
 }
 
@@ -1323,11 +1388,54 @@ onMounted(() => {
 
 .modal-footer {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
-  justify-content: flex-end;
   padding: var(--space-5);
   border-top: 1px solid var(--color-border-default);
 }
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.footer-right {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.btn-test {
+  color: var(--color-accent-500) !important;
+  border-color: rgba(0, 188, 212, 0.3) !important;
+}
+.btn-test:hover:not(:disabled) {
+  background: rgba(0, 188, 212, 0.1) !important;
+  border-color: var(--color-accent-500) !important;
+}
+.btn-test:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.test-result {
+  font-size: var(--text-caption);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.test-result.ok { color: var(--color-success); }
+.test-result.fail { color: var(--color-critical); }
+
+.action-test {
+  color: var(--color-accent-500) !important;
+}
+.action-test:hover:not(:disabled) {
+  background: rgba(0, 188, 212, 0.1) !important;
+  border-color: rgba(0, 188, 212, 0.3) !important;
+}
+.action-test:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-primary {
   padding: var(--space-2) var(--space-5);

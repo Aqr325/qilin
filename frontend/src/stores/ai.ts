@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import aiApi, { type AIQueryResponse, type ConversationSummary, type ConversationDetail, type ModelConfig } from '@/services/api/ai'
+import aiApi, { type AIQueryResponse, type ConversationSummary, type ConversationDetail, type ModelConfig, type ModelConfigTestResult } from '@/services/api/ai'
 
 export const useAIStore = defineStore('ai', () => {
   const conversations = ref<ConversationSummary[]>([])
@@ -149,6 +149,17 @@ export const useAIStore = defineStore('ai', () => {
     return modelConfigs.value.find(c => c.is_default && c.is_active) || modelConfigs.value[0] || null
   }
 
+  async function testModelConfig(data: {
+    config_id?: string
+    provider?: string
+    model?: string
+    api_url?: string
+    api_key?: string
+  }): Promise<ModelConfigTestResult> {
+    const res = await aiApi.testModelConfig(data)
+    return res as unknown as ModelConfigTestResult
+  }
+
   return {
     conversations,
     currentConversation,
@@ -170,5 +181,6 @@ export const useAIStore = defineStore('ai', () => {
     deleteModelConfig,
     setDefaultModelConfig,
     getDefaultModel,
+    testModelConfig,
   }
 })

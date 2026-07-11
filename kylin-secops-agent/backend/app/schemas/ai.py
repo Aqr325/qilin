@@ -206,3 +206,26 @@ class AiModelConfig(BaseModel):
     has_api_key: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+class AiModelTestRequest(BaseModel):
+    """测试模型连通性请求。
+
+    - 传 config_id：测试已保存的配置（自动读取并解密 Key）。
+    - 不传 config_id：用临时字段测试（适合「未保存先验证」）。
+    """
+
+    config_id: Optional[str] = Field(None, description="已保存配置ID（优先使用）")
+    provider: Optional[str] = Field(None, description="提供商: openai/anthropic/ollama/custom")
+    model: Optional[str] = Field(None, description="模型标识")
+    api_url: Optional[str] = Field(None, description="API地址（不填则按提供商默认）")
+    api_key: Optional[str] = Field(None, description="API Key（明文，仅用于本次测试）")
+
+
+class AiModelTestResponse(BaseModel):
+    """测试模型连通性响应."""
+
+    ok: bool = Field(..., description="是否连接成功")
+    message: str = Field(..., description="结果说明")
+    latency_ms: int = Field(0, description="耗时（毫秒）")
+    model: Optional[str] = Field(None, description="实际使用的模型标识")
