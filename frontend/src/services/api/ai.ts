@@ -100,6 +100,13 @@ export interface ModelConfigUpdate {
   is_default?: boolean
 }
 
+export interface ModelConfigTestResult {
+  ok: boolean
+  message: string
+  latency_ms: number
+  model?: string
+}
+
 export const aiApi = {
   query(question: string, contextAlertId?: string) {
     return api.post<AIQueryResponse>('/ai/query', {
@@ -160,6 +167,16 @@ export const aiApi = {
 
   setDefaultModelConfig(id: string) {
     return api.put<ModelConfig>(`/ai/model-configs/${id}/set-default`)
+  },
+
+  testModelConfig(data: {
+    config_id?: string
+    provider?: string
+    model?: string
+    api_url?: string
+    api_key?: string
+  }) {
+    return api.post<ModelConfigTestResult>('/ai/model-configs/test', data)
   },
 }
 

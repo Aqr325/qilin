@@ -1,5 +1,6 @@
 """AI service: natural language query, alert analysis, playbook generation."""
 
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -15,6 +16,8 @@ from app.schemas.ai import (
     AIPlaybookResponse,
     AIQueryRequest,
     AIQueryResponse,
+    AiModelTestRequest,
+    AiModelTestResponse,
     AISuggestion,
     AiModelConfig as AiModelConfigSchema,
     AiModelConfigCreate,
@@ -35,8 +38,8 @@ async def query(
     conv_id = str(uuid.uuid4())
     msg_id = str(uuid.uuid4())
 
-    # Call configured model API
-    answer = await _call_model_api(db, req, user["id"])
+    # Call configured model API (returns answer text AND the real model name used)
+    answer, model_name = await _call_model_api(db, req, user["id"])
     token_usage = len(req.question) + len(answer) if answer else 150
 
     # Save conversation
@@ -49,7 +52,7 @@ async def query(
             {"role": "assistant", "content": answer, "id": str(uuid.uuid4())},
         ],
         context={"timezone": req.timezone or "Asia/Shanghai"},
-        model_name=req.model or "default",
+        model_name=model_name,
         token_usage=token_usage,
     )
     if req.context_alert_id:
@@ -73,9 +76,10 @@ async def _call_model_api(
     db: AsyncSession,
     req: AIQueryRequest,
     user_id: str,
-) -> str:
-    """Call the configured model API. Falls back to placeholder if no config."""
+) -> tuple:
+    """Call the configured model API. Returns (answer, model_name)."""
     import uuid
+    model_name = "default"
     try:
         stmt = select(AiModelConfig).where(
             AiModelConfig.user_id == uuid.UUID(user_id),
@@ -86,7 +90,7 @@ async def _call_model_api(
         model_config = result.scalar_one_or_none()
 
         if not model_config:
-            return f"正在查询: {req.question}\n\n根据数据分析，暂未发现异常。"
+            return f"正在查询: {req.question}\n\n根据数据分析，暂未发现异常。", model_name
 
         provider = model_config.provider.lower()
         api_url = model_config.api_url or ""
@@ -95,11 +99,11 @@ async def _call_model_api(
 
         # Validate required fields
         if not api_url:
-            return "模型调用失败：API 地址未配置，请先到「模型配置」中填写 API 地址。"
+            return "模型调用失败：API 地址未配置，请先到「模型配置」中填写 API 地址。", model_name
         if not model_name:
-            return "模型调用失败：模型标识未配置，请先到「模型配置」中填写模型标识。"
+            return "模型调用失败：模型标识未配置，请先到「模型配置」中填写模型标识。", model_name
         if api_key == "":
-            return "模型调用失败：API Key 未配置，请先到「模型配置」中填写 API Key。"
+            return "模型调用失败：API Key 未配置，请先到「模型配置」中填写 API Key。", model_name
 
         if provider in ("openai", "custom"):
             import aiohttp
@@ -118,14 +122,14 @@ async def _call_model_api(
                 async with session.post(url, json=payload, headers=headers) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        return data.get("choices", [{}])[0].get("message", {}).get("content", "请求成功但未返回内容")
+                        return data.get("choices", [{}])[0].get("message", {}).get("content", "请求成功但未返回内容"), model_name
                     else:
                         try:
                             error_data = await resp.json()
                             detail = error_data.get("error", {}).get("message", str(error_data))
                         except Exception:
                             detail = await resp.text() if resp.headers.get("content-type", "").startswith("text") else ""
-                        return f"模型调用失败 (HTTP {resp.status}): {detail}"
+                        return f"模型调用失败 (HTTP {resp.status}): {detail}", model_name
 
         elif provider == "anthropic":
             import aiohttp
@@ -140,14 +144,14 @@ async def _call_model_api(
                 async with session.post(url, json=payload, headers=headers) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        return data.get("content", [{}])[0].get("text", "请求成功但未返回内容")
+                        return data.get("content", [{}])[0].get("text", "请求成功但未返回内容"), model_name
                     else:
                         try:
                             error_data = await resp.json()
                             detail = error_data.get("error", {}).get("message", str(error_data))
                         except Exception:
                             detail = await resp.text() if resp.headers.get("content-type", "").startswith("text") else ""
-                        return f"模型调用失败 (HTTP {resp.status}): {detail}"
+                        return f"模型调用失败 (HTTP {resp.status}): {detail}", model_name
 
         elif provider == "ollama":
             import aiohttp
@@ -164,15 +168,152 @@ async def _call_model_api(
                 async with session.post(url, json=payload) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        return data.get("message", {}).get("content", "请求成功但未返回内容")
+                        return data.get("message", {}).get("content", "请求成功但未返回内容"), model_name
                     else:
-                        return f"模型调用失败 (HTTP {resp.status})"
+                        return f"模型调用失败 (HTTP {resp.status})", model_name
 
         else:
-            return f"不支持的提供商: {provider}"
+            return f"不支持的提供商: {provider}", model_name
 
     except Exception as e:
-        return f"模型调用异常: {str(e)}"
+        return f"模型调用异常: {str(e)}", model_name
+
+
+# Provider default base URLs (when api_url not given)
+_PROVIDER_DEFAULT_URL = {
+    "openai": "https://api.openai.com/v1",
+    "anthropic": "https://api.anthropic.com/v1",
+    "ollama": "http://localhost:11434/v1",
+    "custom": "",
+}
+
+
+async def test_model_config(
+    db: AsyncSession,
+    req: "AiModelTestRequest",
+    user_id: str,
+) -> dict:
+    """Probe a model provider to verify connectivity / key / model.
+
+    Uses a saved config (by config_id) or inline temporary fields. Returns a
+    result dict: {ok, message, latency_ms, model}.
+    """
+    if req.config_id:
+        stmt = select(AiModelConfig).where(
+            AiModelConfig.id == uuid.UUID(req.config_id),
+            AiModelConfig.user_id == uuid.UUID(user_id),
+        )
+        cfg = (await db.execute(stmt)).scalar_one_or_none()
+        if not cfg:
+            return {"ok": False, "message": "模型配置不存在或无权限", "latency_ms": 0, "model": None}
+        provider = cfg.provider
+        model = cfg.model
+        api_url = cfg.api_url or _PROVIDER_DEFAULT_URL.get(cfg.provider.lower(), "")
+        api_key = decrypt_api_key(cfg.api_key) if cfg.api_key else ""
+    else:
+        if not req.provider or not req.model:
+            return {"ok": False, "message": "请提供 provider 与 model", "latency_ms": 0, "model": None}
+        provider = req.provider
+        model = req.model
+        api_url = req.api_url or _PROVIDER_DEFAULT_URL.get(req.provider.lower(), "")
+        api_key = req.api_key or ""
+
+    if not api_url and provider == "custom":
+        return {"ok": False, "message": "自定义提供商必须填写 API 地址", "latency_ms": 0, "model": model}
+
+    ok, message, latency = await _probe_provider(provider, api_url, api_key, model)
+    return {"ok": ok, "message": message, "latency_ms": latency, "model": model}
+
+
+async def _probe_provider(
+    provider: str, api_url: str, api_key: str, model: str,
+) -> tuple:
+    """Send a minimal request to the provider. Returns (ok, message, latency_ms)."""
+    import aiohttp
+
+    provider = (provider or "").lower()
+    api_url = (api_url or "").rstrip("/")
+    if not api_url:
+        return False, f"未配置 API 地址（{provider} 需要显式地址）", 0
+    if not model:
+        return False, "未配置模型标识", 0
+
+    test_prompt = "ping"
+    start = time.perf_counter()
+    timeout = aiohttp.ClientTimeout(total=15)
+    try:
+        if provider in ("openai", "custom"):
+            url = api_url + "/chat/completions"
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": test_prompt}],
+                "max_tokens": 8,
+                "temperature": 0,
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                        return True, f"连接成功，模型返回: {content[:40]!r}", int((time.perf_counter() - start) * 1000)
+                    detail = await _read_error(resp)
+                    return False, f"模型返回 HTTP {resp.status}: {detail}", int((time.perf_counter() - start) * 1000)
+
+        elif provider == "anthropic":
+            url = api_url + "/messages"
+            headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"}
+            payload = {"model": model, "max_tokens": 8, "messages": [{"role": "user", "content": test_prompt}]}
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        content = data.get("content", [{}])[0].get("text", "")
+                        return True, f"连接成功，模型返回: {content[:40]!r}", int((time.perf_counter() - start) * 1000)
+                    detail = await _read_error(resp)
+                    return False, f"模型返回 HTTP {resp.status}: {detail}", int((time.perf_counter() - start) * 1000)
+
+        elif provider == "ollama":
+            url = api_url + "/api/chat"
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": test_prompt}],
+                "stream": False,
+                "options": {"num_predict": 8},
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=timeout) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        content = data.get("message", {}).get("content", "")
+                        return True, f"连接成功，模型返回: {content[:40]!r}", int((time.perf_counter() - start) * 1000)
+                    detail = await _read_error(resp)
+                    return False, f"模型返回 HTTP {resp.status}: {detail}", int((time.perf_counter() - start) * 1000)
+
+        else:
+            return False, f"不支持的提供商: {provider}", int((time.perf_counter() - start) * 1000)
+
+    except aiohttp.ClientError as e:
+        return False, f"连接失败: {str(e)}", int((time.perf_counter() - start) * 1000)
+    except Exception as e:
+        return False, f"测试异常: {str(e)}", int((time.perf_counter() - start) * 1000)
+
+
+async def _read_error(resp) -> str:
+    """Best-effort extraction of an error message from a provider error response."""
+    try:
+        error_data = await resp.json()
+        if isinstance(error_data, dict):
+            err = error_data.get("error")
+            if isinstance(err, dict):
+                return str(err.get("message", error_data))[:200]
+            return str(err)[:200]
+        return str(error_data)[:200]
+    except Exception:
+        try:
+            return (await resp.text())[:200]
+        except Exception:
+            return ""
 
 
 async def suggest(
@@ -408,10 +549,27 @@ async def get_model_config(
 async def create_model_config(
     db: AsyncSession, req: AiModelConfigCreate, user_id: str,
 ) -> AiModelConfigSchema:
-    """Create a new model config."""
-    # Unset other defaults before creating new one
-    if req.is_default:
-        await _unset_other_defaults(db, user_id)
+    """Create a new model config.
+
+    Auto-default: if the user has no existing default config (or no configs at
+    all), the new config is marked as default so chat can use it immediately.
+    This also removes the dependency on the undefined `_unset_other_defaults`.
+    """
+    uid = uuid.UUID(user_id)
+
+    existing = (
+        await db.execute(select(AiModelConfig).where(AiModelConfig.user_id == uid))
+    ).scalars().all()
+    has_default = any(c.is_default == 1 for c in existing)
+    make_default = bool(req.is_default) or not has_default
+
+    # Clear any existing default flag so only one config stays default
+    if make_default:
+        await db.execute(
+            AiModelConfig.__table__.update()
+            .where(AiModelConfig.user_id == uid)
+            .values(is_default=0)
+        )
 
     # Build API URL defaults for known providers
     api_url = req.api_url
@@ -421,7 +579,7 @@ async def create_model_config(
         api_url = "https://api.anthropic.com/v1"
 
     config = AiModelConfig(
-        user_id=uuid.UUID(user_id),
+        user_id=uid,
         name=req.name,
         provider=req.provider,
         model=req.model,
@@ -431,7 +589,7 @@ async def create_model_config(
         max_tokens=req.max_tokens,
         system_prompt=req.system_prompt,
         is_active=1,
-        is_default=0,
+        is_default=1 if make_default else 0,
     )
     db.add(config)
     await db.flush()

@@ -1,41 +1,43 @@
 {
-    "seed_password": "KylinSecOps@2026",
-    "backend": {
-        "host": "127.0.0.1",
-        "port": 8001,
-        "debug": false,
-        "database": {
-            "dialect": "sqlite",
-            "url": "kylin_secops.db"
-        },
-        "jwt": {
-            "algorithm": "HS256",
-            "secret_key": "kylin-secops-desktop-key-2026",
-            "expire_minutes": 480
-        },
-        "redis": {
-            "enabled": false,
-            "host": "",
-            "port": 6379,
-            "db": 0,
-            "password": ""
-        },
-        "cors": {
-            "origins": ["*"]
-        }
+  "seed_password": "KylinSecOps@2026",
+  "backend": {
+    "host": "127.0.0.1",
+    "port": 8001,
+    "debug": false,
+    "database": {
+      "dialect": "sqlite",
+      "url": "kylin_secops.db"
     },
-    "frontend": {
-        "static_path": "./frontend-dist",
-        "port": 5173
+    "jwt": {
+      "algorithm": "HS256",
+      "secret_key": "kylin-secops-desktop-key-2026",
+      "expire_minutes": 480
     },
-    "desktop": {
-        "version": "2.4.0",
-        "project_name": "麒麟OS安全智能运维Agent",
-        "icon_path": "./icon.png",
-        "auto_start_backend": true,
-        "auto_open_browser": false,
-        "backend_ready_timeout_seconds": 60,
-        "health_check_interval_seconds": 5,
-        "data_directory": "./data"
+    "redis": {
+      "enabled": false,
+      "host": "",
+      "port": 6379,
+      "db": 0,
+      "password": ""
+    },
+    "cors": {
+      "origins": [
+        "*"
+      ]
     }
+  },
+  "frontend": {
+    "static_path": "./frontend-dist",
+    "port": 5173
+  },
+  "desktop": {
+    "version": "2.4.2",
+    "project_name": "麒麟OS安全智能运维Agent",
+    "icon_path": "./icon.png",
+    "auto_start_backend": true,
+    "auto_open_browser": false,
+    "backend_ready_timeout_seconds": 60,
+    "health_check_interval_seconds": 5,
+    "data_directory": "./data"
+  }
 }
