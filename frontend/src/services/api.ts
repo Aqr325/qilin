@@ -64,6 +64,10 @@ class ApiService {
             const refreshData = await refreshRes.json()
             this.token = refreshData.data.access_token
             this.refreshToken = refreshData.data.refresh_token
+            // 持久化刷新令牌，避免刷新后丢失
+            if (this.refreshToken) {
+              localStorage.setItem('refreshToken', this.refreshToken)
+            }
             // 重试原请求
             (config.headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`
             const retryRes = await fetch(`${BASE_URL}${path}`, config)

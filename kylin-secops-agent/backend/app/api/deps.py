@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.core.token_blacklist import token_blacklist
 from app.models.agent import Agent
 from app.models.user import User, Role, Permission
 
@@ -84,6 +85,14 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token expired or invalid",
+        )
+
+    # Reject tokens that have been revoked via logout (blacklist by jti)
+    jti = payload.get("jti")
+    if jti and token_blacklist.is_blacklisted(jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
         )
 
     # Fetch user with roles and permissions

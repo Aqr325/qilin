@@ -406,15 +406,9 @@ async function loadPolicies() {
     const res = await policiesApi.list()
     policyList.value = res.items
   } catch {
-    // Fallback: populate with mock data if API unavailable
-    policyList.value = [
-      { id: 'policy-01', name: '文件完整性监控', policy_type: 'file_integrity', policy_type_label: '文件完整性监控' } as Policy,
-      { id: 'policy-02', name: '进程白名单', policy_type: 'process_whitelist', policy_type_label: '进程白名单' } as Policy,
-      { id: 'policy-03', name: '网络访问控制', policy_type: 'network_firewall', policy_type_label: '网络访问控制' } as Policy,
-      { id: 'policy-04', name: '登录安全策略', policy_type: 'login_policy', policy_type_label: '登录安全策略' } as Policy,
-      { id: 'policy-05', name: '漏洞扫描配置', policy_type: 'vulnerability_scan', policy_type_label: '漏洞扫描配置' } as Policy,
-      { id: 'policy-06', name: '日志审计规则', policy_type: 'log_audit', policy_type_label: '日志审计规则' } as Policy,
-    ]
+    // 真实数据失败：显示空状态，绝不使用假数据
+    policyList.value = []
+    showToast('策略列表加载失败，请检查后端服务', 'error')
   }
 }
 

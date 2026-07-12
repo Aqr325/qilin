@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { User } from '@/types'
+import type { User, LoginResponse } from '@/types'
 import api from '@/services/api'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -11,14 +11,16 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username: string, password: string) {
     loading.value = true
     try {
-      const res = await api.post<{ access_token: string; user: User }>('/auth/login', {
+      const res = await api.post<LoginResponse>('/auth/login', {
         username,
         password,
       })
       api.setToken(res.access_token)
+      api.setRefreshToken(res.refresh_token)
       user.value = res.user
       isAuthenticated.value = true
       localStorage.setItem('token', res.access_token)
+      localStorage.setItem('refreshToken', res.refresh_token)
       return true
     } catch (e) {
       console.error('Login failed:', e)
@@ -33,21 +35,37 @@ export const useAuthStore = defineStore('auth', () => {
     if (!token) return
 
     api.setToken(token)
+    // 还原刷新令牌，使静默刷新可用
+    const refreshToken = localStorage.getItem('refreshToken')
+    if (refreshToken) {
+      api.setRefreshToken(refreshToken)
+    }
     try {
       const res = await api.get<User>('/auth/me')
       user.value = res
       isAuthenticated.value = true
     } catch {
       api.setToken(null)
+      api.setRefreshToken(null)
       localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
     }
   }
 
-  function logout() {
+  async function logout() {
+    const refreshToken = localStorage.getItem('refreshToken')
+    try {
+      // 通知后端吊销访问令牌与刷新令牌（防重放）
+      await api.post('/auth/logout', { refresh_token: refreshToken })
+    } catch {
+      // 即使后端不可用也执行本地清理
+    }
     user.value = null
     isAuthenticated.value = false
     api.setToken(null)
+    api.setRefreshToken(null)
     localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
   }
 
   return { user, isAuthenticated, loading, login, fetchCurrentUser, logout }

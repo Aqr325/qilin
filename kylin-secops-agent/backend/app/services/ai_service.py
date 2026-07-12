@@ -56,7 +56,12 @@ async def query(
         token_usage=token_usage,
     )
     if req.context_alert_id:
-        conv.related_alert_id = uuid.UUID(req.context_alert_id)
+        try:
+            conv.related_alert_id = uuid.UUID(req.context_alert_id)
+        except (ValueError, AttributeError):
+            raise HTTPException(
+                status_code=400, detail="非法的 context_alert_id"
+            )
     db.add(conv)
     await db.flush()
 
@@ -64,11 +69,9 @@ async def query(
         conversation_id=conv_id,
         message_id=msg_id,
         answer=answer,
-        confidence=0.95,
         data_sources=[],
         suggested_actions=[],
         token_usage=token_usage,
-        processing_time_ms=500,
     )
 
 
@@ -90,7 +93,7 @@ async def _call_model_api(
         model_config = result.scalar_one_or_none()
 
         if not model_config:
-            return f"正在查询: {req.question}\n\n根据数据分析，暂未发现异常。", model_name
+            return "尚未配置默认模型，暂无法回答。请先到「模型配置」中设置默认模型。", model_name
 
         provider = model_config.provider.lower()
         api_url = model_config.api_url or ""
@@ -118,8 +121,9 @@ async def _call_model_api(
                 "temperature": model_config.temperature,
                 "max_tokens": model_config.max_tokens,
             }
+            timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, headers=headers) as resp:
+                async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         return data.get("choices", [{}])[0].get("message", {}).get("content", "请求成功但未返回内容"), model_name
@@ -140,8 +144,9 @@ async def _call_model_api(
                 "max_tokens": model_config.max_tokens,
                 "messages": [{"role": "user", "content": req.question}],
             }
+            timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, headers=headers) as resp:
+                async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         return data.get("content", [{}])[0].get("text", "请求成功但未返回内容"), model_name
@@ -164,8 +169,9 @@ async def _call_model_api(
                 ],
                 "stream": False,
             }
+            timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload) as resp:
+                async with session.post(url, json=payload, timeout=timeout) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         return data.get("message", {}).get("content", "请求成功但未返回内容"), model_name
@@ -577,6 +583,8 @@ async def create_model_config(
         api_url = "https://api.openai.com/v1"
     elif not api_url and req.provider == "anthropic":
         api_url = "https://api.anthropic.com/v1"
+    elif not api_url and req.provider == "ollama":
+        api_url = _PROVIDER_DEFAULT_URL["ollama"]
 
     config = AiModelConfig(
         user_id=uid,

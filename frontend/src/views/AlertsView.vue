@@ -331,7 +331,7 @@ async function changeDetailStatus(status: string) {
   }
 }
 
-function exportAlerts() {
+async function exportAlerts() {
   const columns = [
     { key: 'alert_seq', label: '告警编号' },
     { key: 'title', label: '告警标题' },
@@ -341,7 +341,18 @@ function exportAlerts() {
     { key: 'source_ip', label: '来源IP' },
     { key: 'created_at', label: '创建时间' },
   ]
-  exportToCSV(alertsStore.alerts, columns, `告警导出_${timestampSuffix()}.csv`)
+  try {
+    // 从后端拉取完整告警集合后再导出（而非仅当前分页）
+    const res = await alertsApi.list({ page: '1', size: '100000' })
+    const rows = res.items ?? []
+    if (rows.length === 0) {
+      showToast('暂无可导出的告警数据', 'warning')
+      return
+    }
+    exportToCSV(rows, columns, `告警导出_${timestampSuffix()}.csv`)
+  } catch {
+    showToast('告警导出失败，请检查后端服务', 'error')
+  }
 }
 
 onMounted(() => {

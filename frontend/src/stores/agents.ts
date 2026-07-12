@@ -58,9 +58,9 @@ export const useAgentsStore = defineStore('agents', () => {
     }
   }
 
-  async function upgradeAgents(agentIds: string[], version: string) {
+  async function upgradeAgents(agentIds: string[], version: string, packageUrl = '') {
     try {
-      await api.post('/agents/upgrade', { agent_ids: agentIds, version })
+      await api.post('/agents/upgrade', { agent_ids: agentIds, version, package_url: packageUrl })
       return true
     } catch {
       return false

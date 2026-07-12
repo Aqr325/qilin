@@ -3,8 +3,12 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import hmac
+
 from app.api.deps import get_current_user, get_pagination, get_request_id
+from app.core.config import settings
 from app.core.database import get_db
+from app.core.permissions import Permission, require_permission
 from app.models.agent import Agent
 from app.schemas.agent import (
     AgentBatchEventsRequest,
@@ -38,7 +42,9 @@ async def validate_agent_token(
         raise HTTPException(status_code=401, detail="Missing X-Agent-Token header")
     from sqlalchemy import select
     from app.models.agent import Agent
-    result = await db.execute(select(Agent).where(Agent.credential == x_agent_token))
+    result = await db.execute(
+        select(Agent).where(Agent.credential == x_agent_token).where(Agent.is_deleted == False)
+    )
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=401, detail="Invalid agent token")
@@ -62,9 +68,18 @@ async def agent_heartbeat(
 @router.post("/register", response_model=ApiResponse)
 async def agent_register(
     req: AgentRegisterRequest,
+    x_bootstrap_token: str = Header(None, alias="X-Agent-Bootstrap-Token"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Agent注册."""
+    """Agent注册（需 bootstrap token，防止未授权写入数据库）."""
+    expected = settings.AGENT_BOOTSTRAP_TOKEN
+    if not expected:
+        raise HTTPException(
+            status_code=403,
+            detail="Agent 注册未启用：未配置 AGENT_BOOTSTRAP_TOKEN",
+        )
+    if not x_bootstrap_token or not hmac.compare_digest(x_bootstrap_token, expected):
+        raise HTTPException(status_code=401, detail="缺少或非法的 bootstrap token")
     result = await agent_service.register_agent(db, req)
     return ApiResponse(data=result)
 
@@ -206,7 +221,7 @@ async def get_agent_heartbeats(
 @mgmt_router.post("/upgrade", response_model=ApiResponse)
 async def upgrade_agents(
     req: AgentUpgradeRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_UPGRADE)),
     db: AsyncSession = Depends(get_db),
 ):
     """远程升级Agent."""
@@ -228,7 +243,7 @@ async def get_upgrade_history(
 @mgmt_router.post("/{agent_id}/restart", response_model=ApiResponse)
 async def restart_agent(
     agent_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_RESTART)),
     db: AsyncSession = Depends(get_db),
 ):
     """远程重启Agent."""

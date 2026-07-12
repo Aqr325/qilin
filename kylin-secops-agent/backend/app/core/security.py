@@ -199,12 +199,31 @@ import base64
 from cryptography.fernet import Fernet
 
 
+# Legacy hardcoded key — ONLY used to decrypt data that was encrypted before
+# the per-install key derivation was introduced. Never used for new encryption.
+_LEGACY_AI_KEY = "kylin-secops-ai-key-2026-0708-32bytes!"
+
+
 def get_encryption_key() -> bytes:
-    """从环境变量获取加密密钥，若不存在则使用项目固定密钥。"""
+    """Resolve the Fernet key for encrypting AI provider API keys.
+
+    Priority: explicit env ``AI_API_KEY_ENCRYPTION_KEY`` > derived from the
+    per-install ``JWT_SECRET_KEY``. No hardcoded fallback (the old fixed key
+    meant anyone with the source could decrypt every user's provider keys).
+    """
     key = os.environ.get("AI_API_KEY_ENCRYPTION_KEY")
     if not key:
-        key = "kylin-secops-ai-key-2026-0708-32bytes!"
+        key = settings.JWT_SECRET_KEY
+    if not key:
+        raise RuntimeError(
+            "No encryption key available for AI API keys; "
+            "set AI_API_KEY_ENCRYPTION_KEY or JWT_SECRET_KEY"
+        )
     return base64.urlsafe_b64encode(key.ljust(32).encode()[:32])
+
+
+def _legacy_fernet() -> "Fernet":
+    return Fernet(base64.urlsafe_b64encode(_LEGACY_AI_KEY.ljust(32).encode()[:32]))
 
 
 _fernet = None
@@ -222,4 +241,8 @@ def encrypt_api_key(plain_text: str) -> str:
 
 
 def decrypt_api_key(cipher_text: str) -> str:
-    return _get_fernet().decrypt(cipher_text.encode()).decode()
+    try:
+        return _get_fernet().decrypt(cipher_text.encode()).decode()
+    except Exception:
+        # Fallback for data encrypted with the legacy key (one-time migration)
+        return _legacy_fernet().decrypt(cipher_text.encode()).decode()

@@ -19,8 +19,8 @@ export const agentsApi = {
     return api.get(`/agents/${id}/metrics`)
   },
 
-  upgrade(agentIds: string[], version: string) {
-    return api.post('/agents/upgrade', { agent_ids: agentIds, version })
+  upgrade(agentIds: string[], version: string, packageUrl = '') {
+    return api.post('/agents/upgrade', { agent_ids: agentIds, version, package_url: packageUrl })
   },
 
   restart(id: string) {

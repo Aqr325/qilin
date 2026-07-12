@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     LOCKOUT_DURATION_MINUTES: int = 15
     PASSWORD_MIN_LENGTH: int = 12
     MFA_ENABLED: bool = False
+    AGENT_BOOTSTRAP_TOKEN: Optional[str] = None  # bootstrap token required for POST /agent/register (None = registration disabled)
 
     # ── Agent ──
     AGENT_HEARTBEAT_TIMEOUT: int = 30  # seconds

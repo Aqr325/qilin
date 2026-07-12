@@ -1,29 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '@/services/api'
+import { systemApi } from '@/services/api/system'
 import type { AuditLog } from '@/types'
-
-export interface SystemUser {
-  id: string
-  username: string
-  display_name: string
-  email: string
-  role: string
-  roles?: { name: string; display_name: string }[]
-  is_active: boolean
-  mfa_enabled: boolean
-  last_login?: string
-  created_at: string
-}
-
-export interface SystemRole {
-  id: string
-  name: string
-  display_name: string
-  description: string
-  permission_count: number
-  permissions: string[]
-}
+import type { SystemUser, SystemRole } from '@/services/api/system'
 
 export const useSystemStore = defineStore('system', () => {
   const users = ref<SystemUser[]>([])
@@ -35,12 +15,12 @@ export const useSystemStore = defineStore('system', () => {
   async function fetchUsers() {
     loading.value = true
     try {
-      const res = await api.get<any>('/system/users')
-      const items = res.items || res
+      const res = await systemApi.users()
+      const items = res.items ?? []
       // Map backend roles array to simple role string
-      users.value = (items as any[]).map(u => ({
+      users.value = items.map(u => ({
         ...u,
-        role: u.roles?.[0]?.name ?? u.roles?.[0]?.id ?? '',
+        role: u.roles?.[0]?.name ?? '',
         is_active: u.is_active !== undefined ? u.is_active : true,
         mfa_enabled: u.mfa_enabled ?? false,
       }))
