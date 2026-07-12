@@ -1,11 +1,28 @@
 """Kylin SecOps Agent - Backend Main Application Entry."""
 
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from fastapi.responses import PlainTextResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
+# ── Observability state (Prometheus-style, pure stdlib exposition) ──
+_START_TIME = time.time()
+_REQUEST_COUNT = 0
+
+
+class _MetricsMiddleware(BaseHTTPMiddleware):
+    """Count every HTTP request that reaches the app (excluding /metrics itself)."""
+
+    async def dispatch(self, request, call_next):
+        global _REQUEST_COUNT
+        if request.url.path != "/metrics":
+            _REQUEST_COUNT += 1
+        return await call_next(request)
 
 from app.api.v1 import api_router
 from app.core.config import settings
@@ -51,6 +68,7 @@ app.add_middleware(
 )
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(rate_limit_middleware)
+app.add_middleware(_MetricsMiddleware)
 
 
 # ── Mount Routers ──
@@ -94,3 +112,38 @@ async def health_check():
         "version": settings.VERSION,
         "service": settings.PROJECT_NAME,
     }
+
+
+@app.get("/metrics", tags=["system"])
+async def metrics():
+    """Prometheus 指标端点（纯标准库 text 格式，无第三方依赖）.
+
+    暴露：
+      - kylin_agent_info            构建静态信息（版本/服务名），值恒为 1
+      - kylin_agent_uptime_seconds  进程已运行秒数
+      - kylin_agent_requests_total  后端累计处理的 HTTP 请求数
+      - kylin_agent_health_status   /health 正常为 1，异常为 0
+    """
+    uptime = time.time() - _START_TIME
+    health_status = 1
+    try:
+        hc = await health_check()
+        health_status = 1 if hc.get("status") == "ok" else 0
+    except Exception:
+        health_status = 0
+
+    payload = "\n".join([
+        "# HELP kylin_agent_info Static build info for this Agent instance.",
+        "# TYPE kylin_agent_info gauge",
+        f'kylin_agent_info{{version="{settings.VERSION}",service="{settings.PROJECT_NAME}"}} 1',
+        "# HELP kylin_agent_uptime_seconds Process uptime in seconds.",
+        "# TYPE kylin_agent_uptime_seconds gauge",
+        f"kylin_agent_uptime_seconds {uptime:.2f}",
+        "# HELP kylin_agent_requests_total Total HTTP requests handled by the backend.",
+        "# TYPE kylin_agent_requests_total counter",
+        f"kylin_agent_requests_total {_REQUEST_COUNT}",
+        "# HELP kylin_agent_health_status 1 if /health reports ok, else 0.",
+        "# TYPE kylin_agent_health_status gauge",
+        f"kylin_agent_health_status {health_status}",
+    ])
+    return PlainTextResponse(payload + "\n")
