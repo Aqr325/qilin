@@ -132,7 +132,11 @@ async def get_policy_detail(
 ) -> PolicyDetail:
     """Get policy detail."""
     repo = PolicyRepository(db)
-    policy = await repo.get(uuid.UUID(policy_id))
+    try:
+        pid = uuid.UUID(policy_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=404, detail="策略不存在")
+    policy = await repo.get(pid)
     if not policy or policy.is_deleted:
         raise HTTPException(status_code=404, detail="策略不存在")
     return await _policy_to_detail(policy)
@@ -146,7 +150,11 @@ async def update_policy(
 ) -> PolicyDetail:
     """Update policy (creates new version)."""
     repo = PolicyRepository(db)
-    policy = await repo.get(uuid.UUID(policy_id))
+    try:
+        pid = uuid.UUID(policy_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=404, detail="策略不存在")
+    policy = await repo.get(pid)
     if not policy or policy.is_deleted:
         raise HTTPException(status_code=404, detail="策略不存在")
 
