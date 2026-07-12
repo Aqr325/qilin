@@ -8,6 +8,7 @@ export interface SystemUser {
   email: string
   phone?: string
   role: string
+  roles?: { name: string; display_name: string }[]
   is_active: boolean
   mfa_enabled: boolean
   last_login?: string

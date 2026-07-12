@@ -15,7 +15,7 @@ export const useAIStore = defineStore('ai', () => {
   async function fetchConversations() {
     try {
       const res = await aiApi.conversations()
-      conversations.value = (res as any).items || []
+      conversations.value = res.items ?? []
     } catch {
       conversations.value = []
     }
@@ -100,8 +100,8 @@ export const useAIStore = defineStore('ai', () => {
     modelConfigLoading.value = true
     try {
       const res = await aiApi.listModelConfigs()
-      const items = (res as any).items || res
-      modelConfigs.value = Array.isArray(items) ? items : []
+      const items = Array.isArray(res) ? res : (res as { items?: ModelConfig[] }).items ?? []
+      modelConfigs.value = items
     } catch {
       modelConfigs.value = []
     } finally {

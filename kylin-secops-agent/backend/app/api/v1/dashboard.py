@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.permissions import Permission, require_permission
 from app.schemas.ai import DashboardOverview, HeatmapData, TopAlertType, TrendData
 from app.schemas.common import ApiResponse
 from app.services import dashboard_service
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/dashboard", tags=["仪表盘"])
 
 @router.get("/overview", response_model=ApiResponse[DashboardOverview])
 async def dashboard_overview(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.DASHBOARD_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """全局安全概览."""
@@ -25,7 +26,7 @@ async def dashboard_overview(
 @router.get("/alert-trend", response_model=ApiResponse[TrendData])
 async def alert_trend(
     days: int = Query(default=7, ge=1, le=90),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.DASHBOARD_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """告警趋势图数据."""
@@ -36,7 +37,7 @@ async def alert_trend(
 @router.get("/agent-heatmap", response_model=ApiResponse[HeatmapData])
 async def agent_heatmap(
     hours: int = Query(default=24, ge=1, le=168),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.DASHBOARD_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent健康热力图."""
@@ -48,7 +49,7 @@ async def agent_heatmap(
 async def top_alerts(
     limit: int = Query(default=10, ge=1, le=50),
     time_range: str = Query(default="24h"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.DASHBOARD_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Top N告警类型."""

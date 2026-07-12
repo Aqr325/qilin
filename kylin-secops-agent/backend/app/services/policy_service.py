@@ -179,8 +179,12 @@ async def update_policy(
 
 async def delete_policy(db: AsyncSession, policy_id: str, operator: dict):
     """Soft delete policy."""
+    try:
+        pid = uuid.UUID(policy_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=404, detail="策略不存在")
     repo = PolicyRepository(db)
-    await repo.soft_delete(uuid.UUID(policy_id))
+    await repo.soft_delete(pid)
 
 
 async def deploy_policy(

@@ -12,7 +12,7 @@ export interface AIPlaybookResponse {
 }
 
 export interface ConversationListResponse {
-  conversations: ConversationSummary[]
+  items: ConversationSummary[]
   total: number
   page: number
   size: number

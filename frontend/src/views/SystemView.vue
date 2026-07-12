@@ -340,8 +340,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useSystemStore, type SystemUser } from '@/stores/system'
-import { systemApi, type SystemRole } from '@/services/api/system'
+import { useSystemStore } from '@/stores/system'
+import { systemApi, type SystemUser, type SystemRole } from '@/services/api/system'
 import api from '@/services/api'
 import { exportToCSV, timestampSuffix } from '@/utils/csv'
 import { showToast } from '@/utils/toast'
@@ -366,24 +366,12 @@ const roleOptions = computed(() =>
 async function fetchPermissions() {
   loadingPermissions.value = true
   try {
-    const perms = await api.get<any>('/system/permissions')
-    permissionList.value = Array.isArray(perms) ? perms : (perms.items || [])
+    const perms = await api.get<{ id: string; label: string }[]>('/system/permissions')
+    permissionList.value = Array.isArray(perms) ? perms : (perms as { items?: { id: string; label: string }[] }).items || []
   } catch {
-    console.warn('Failed to load permissions, using defaults')
-    permissionList.value = [
-      { id: 'alert:read', label: '告警查看' },
-      { id: 'alert:write', label: '告警处置' },
-      { id: 'agent:read', label: 'Agent 查看' },
-      { id: 'agent:write', label: 'Agent 管理' },
-      { id: 'policy:read', label: '策略查看' },
-      { id: 'policy:write', label: '策略配置' },
-      { id: 'policy:deploy', label: '策略下发' },
-      { id: 'user:write', label: '用户管理' },
-      { id: 'role:write', label: '角色管理' },
-      { id: 'audit:read', label: '审计日志' },
-      { id: 'system:write', label: '系统设置' },
-      { id: 'ai:chat', label: 'AI 对话' },
-    ]
+    // 真实接口失败：显示空状态，绝不使用假数据
+    permissionList.value = []
+    showToast('权限列表加载失败，请检查后端服务', 'error')
   } finally {
     loadingPermissions.value = false
   }
@@ -455,22 +443,9 @@ function exportAuditLogs() {
   exportToCSV(systemStore.auditLogs, columns, `审计日志导出_${timestampSuffix()}.csv`)
 }
 
-// 权限矩阵：从动态权限列表和角色数据计算
+// 权限矩阵：从动态权限列表和角色数据计算（仅使用真实数据）
 const permMatrix = computed(() => {
-  const perms = permissionList.value.length > 0 ? permissionList.value : [
-    { id: 'alert:read', label: '告警查看' },
-    { id: 'alert:write', label: '告警处置' },
-    { id: 'agent:read', label: 'Agent 查看' },
-    { id: 'agent:write', label: 'Agent 管理' },
-    { id: 'policy:read', label: '策略查看' },
-    { id: 'policy:write', label: '策略配置' },
-    { id: 'policy:deploy', label: '策略下发' },
-    { id: 'user:write', label: '用户管理' },
-    { id: 'role:write', label: '角色管理' },
-    { id: 'audit:read', label: '审计日志' },
-    { id: 'system:write', label: '系统设置' },
-    { id: 'ai:chat', label: 'AI 对话' },
-  ]
+  const perms = permissionList.value
   const roles = systemStore.roles
   return perms.map(p => ({
     action: p.label,
@@ -555,35 +530,8 @@ async function saveUser() {
     await systemStore.fetchUsers()
     closeUserDialog()
   } catch {
-    // API not available, optimistic update
-    if (editingUser.value) {
-      const u = systemStore.users.find(u => u.id === editingUser.value!.id)
-      if (u) {
-        u.display_name = userForm.value.display_name
-        u.email = userForm.value.email
-        u.role = userForm.value.role
-        // Also update roles array so the table display reflects the change
-        const roleMap: Record<string, { name: string; display_name: string }> = {
-          admin: { name: 'admin', display_name: '系统管理员' },
-          operator: { name: 'operator', display_name: '安全运维员' },
-          auditor: { name: 'auditor', display_name: '安全审计员' },
-          readonly: { name: 'readonly', display_name: '只读用户' },
-        }
-        u.roles = [roleMap[userForm.value.role] || { name: userForm.value.role, display_name: userForm.value.role }]
-      }
-    } else {
-      systemStore.users.push({
-        id: 'user-' + Date.now(),
-        username: userForm.value.username,
-        display_name: userForm.value.display_name,
-        email: userForm.value.email,
-        role: userForm.value.role,
-        is_active: true,
-        mfa_enabled: false,
-        last_login: undefined,
-        created_at: new Date().toISOString(),
-      })
-    }
+    // 真实接口失败：提示错误，不插入假数据
+    showToast('用户保存失败，请检查后端服务', 'error')
     closeUserDialog()
   } finally {
     userSaving.value = false
@@ -663,24 +611,8 @@ async function saveRole() {
     await systemStore.fetchRoles()
     closeRoleDialog()
   } catch {
-    // API not available, optimistic update
-    if (editingRole.value) {
-      const r = systemStore.roles.find(r => r.id === editingRole.value!.id)
-      if (r) {
-        r.display_name = roleForm.value.display_name
-        r.description = roleForm.value.description
-        r.permission_count = roleForm.value.permissions.length
-      }
-    } else {
-      systemStore.roles.push({
-        id: 'role-' + Date.now(),
-        name: roleForm.value.name,
-        display_name: roleForm.value.display_name,
-        description: roleForm.value.description,
-        permission_count: roleForm.value.permissions.length,
-        permissions: roleForm.value.permissions,
-      })
-    }
+    // 真实接口失败：提示错误，不插入假数据
+    showToast('角色保存失败，请检查后端服务', 'error')
     closeRoleDialog()
   } finally {
     roleSaving.value = false

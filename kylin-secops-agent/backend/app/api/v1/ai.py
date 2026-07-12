@@ -1,10 +1,13 @@
 """AI dialog routes."""
 
-from fastapi import APIRouter, Depends
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_pagination
 from app.core.database import get_db
+from app.core.permissions import Permission, require_permission
 from app.schemas.ai import (
     AIFeedbackRequest,
     AIPlaybookRequest,
@@ -30,10 +33,15 @@ router = APIRouter(prefix="/ai", tags=["AI对话"])
 @router.post("/query", response_model=ApiResponse[AIQueryResponse])
 async def ai_query(
     req: AIQueryRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """自然语言运维查询."""
+    if req.context_alert_id:
+        try:
+            uuid.UUID(req.context_alert_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="非法的 context_alert_id")
     result = await ai_service.query(db, req, user=current_user)
     return ApiResponse(data=result)
 
@@ -41,7 +49,7 @@ async def ai_query(
 @router.post("/suggest", response_model=ApiResponse[AISuggestion])
 async def ai_suggest(
     req: AISuggestRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """AI告警研判建议."""
@@ -52,7 +60,7 @@ async def ai_suggest(
 @router.post("/playbook", response_model=ApiResponse[AIPlaybookResponse])
 async def ai_playbook(
     req: AIPlaybookRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """AI生成处置剧本."""
@@ -90,7 +98,7 @@ async def get_conversation(
 @router.delete("/conversations/{conv_id}", response_model=ApiResponse)
 async def delete_conversation(
     conv_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """删除对话."""
@@ -101,7 +109,7 @@ async def delete_conversation(
 @router.post("/feedback", response_model=ApiResponse)
 async def ai_feedback(
     req: AIFeedbackRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """AI回答反馈."""
@@ -124,7 +132,7 @@ async def list_model_configs(
 @router.post("/model-configs", response_model=ApiResponse[AiModelConfig])
 async def create_model_config(
     req: AiModelConfigCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """创建模型配置."""
@@ -135,7 +143,7 @@ async def create_model_config(
 @router.post("/model-configs/test", response_model=ApiResponse[AiModelTestResponse])
 async def test_model_config_endpoint(
     req: AiModelTestRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """测试模型连通性（可使用已保存配置或临时参数）."""
@@ -158,7 +166,7 @@ async def get_model_config(
 async def update_model_config(
     config_id: str,
     req: AiModelConfigUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """更新模型配置."""
@@ -169,7 +177,7 @@ async def update_model_config(
 @router.delete("/model-configs/{config_id}", response_model=ApiResponse)
 async def delete_model_config(
     config_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """删除模型配置."""
@@ -180,7 +188,7 @@ async def delete_model_config(
 @router.put("/model-configs/{config_id}/set-default", response_model=ApiResponse[AiModelConfig])
 async def set_default_model_config(
     config_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """设置默认模型."""

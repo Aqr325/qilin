@@ -359,43 +359,8 @@ async function savePolicy() {
     }
     closeEditor()
   } catch {
-    // API not available, try optimistic update with mock
-    if (editingPolicy.value) {
-      const idx = policiesStore.policies.findIndex(p => p.id === editingPolicy.value!.id)
-      if (idx >= 0) {
-        policiesStore.policies[idx] = {
-          ...policiesStore.policies[idx],
-          name: editorForm.value.name,
-          description: editorForm.value.description,
-          policy_type: editorForm.value.policy_type as PolicyType,
-          priority: editorForm.value.priority,
-          rules,
-        }
-      }
-    } else {
-      const newPolicy: Policy = {
-        id: 'policy-' + Date.now(),
-        name: editorForm.value.name,
-        description: editorForm.value.description || '',
-        policy_type: editorForm.value.policy_type as PolicyType,
-        policy_type_label: policyTypeLabel(editorForm.value.policy_type),
-        version: 1,
-        status: 'draft',
-        status_label: '草稿',
-        target_type: editorForm.value.target_type,
-        target_value: [],
-        rules,
-        priority: editorForm.value.priority,
-        enabled: false,
-        created_by: {
-          id: authStore.user?.id || '',
-          display_name: authStore.user?.display_name || '系统',
-        },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-      policiesStore.policies.unshift(newPolicy)
-    }
+    // 真实接口失败：提示错误，不插入假数据
+    showToast('策略保存失败，请检查后端服务', 'error')
     closeEditor()
   }
 }
@@ -416,7 +381,7 @@ async function deployPolicy(policy: Policy) {
   // confirm() is kept for confirmation dialogs
   if (!confirm(`确认将策略「${policy.name}」下发到目标 Agent？`)) return
   try {
-    await policiesApi.deploy(policy.id)
+    await policiesApi.deploy(policy.id, [], false)
     // refresh
     await policiesStore.fetchPolicies()
   } catch (e) {

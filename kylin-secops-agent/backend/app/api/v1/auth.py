@@ -1,10 +1,15 @@
 """Auth routes: login, refresh, logout, profile."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_current_user_optional, get_request_id
 from app.core.database import get_db
+from app.core.security import decode_token
+from app.core.token_blacklist import token_blacklist
 from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
@@ -51,9 +56,37 @@ async def refresh_token(
 async def logout(
     request: Request,
     current_user: dict = Depends(get_current_user),
+    refresh_token: Optional[str] = Body(None, embed=True),
 ):
-    """退出登录."""
+    """退出登录并立即吊销当前访问令牌（及可选的刷新令牌）."""
     await auth_service.logout(current_user)
+
+    # Revoke the access token (from the Authorization header) and, if the
+    # client also supplies its refresh token, that one too — so a stolen
+    # refresh token cannot mint new tokens after logout.
+    authorization = request.headers.get("authorization")
+    tokens_to_revoke = []
+    if authorization:
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() == "bearer" and token:
+            tokens_to_revoke.append(token)
+    if refresh_token:
+        tokens_to_revoke.append(refresh_token)
+
+    for tok in tokens_to_revoke:
+        try:
+            payload = decode_token(tok)
+            jti = payload.get("jti")
+            if jti:
+                exp = payload.get("exp")
+                exp_dt = (
+                    datetime.fromtimestamp(exp, tz=timezone.utc) if exp else None
+                )
+                token_blacklist.blacklist(jti, exp_dt)
+        except Exception:
+            # If decoding fails, there is nothing to revoke; ignore.
+            pass
+
     return ApiResponse(message="退出成功")
 
 

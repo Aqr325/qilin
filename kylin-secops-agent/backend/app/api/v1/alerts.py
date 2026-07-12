@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_pagination, get_request_id
 from app.core.database import get_db
+from app.core.permissions import Permission, require_permission
 from app.schemas.alert import (
     AlertDetail,
     AlertStats,
@@ -119,7 +120,7 @@ async def get_alert(
 async def update_alert_status(
     alert_id: str,
     req: UpdateAlertStatusRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """更新告警状态."""
@@ -132,7 +133,7 @@ async def update_alert_status(
 @router.post("/batch/status", response_model=ApiResponse[BatchStatusResult])
 async def batch_update_status(
     req: BatchStatusRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """批量处置告警."""
@@ -147,7 +148,7 @@ async def batch_update_status(
 async def assign_alert(
     alert_id: str,
     req: AssignAlertRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_ASSIGN)),
     db: AsyncSession = Depends(get_db),
 ):
     """指派告警处理人."""
@@ -183,7 +184,7 @@ async def get_related_alerts(
 async def suppress_alert(
     alert_id: str,
     req: SuppressAlertRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_SUPPRESS)),
     db: AsyncSession = Depends(get_db),
 ):
     """添加告警抑制规则."""

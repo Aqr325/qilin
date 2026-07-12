@@ -35,11 +35,34 @@ DB_URL = db.get('url', 'kylin_secops.db')
 BACKEND_HOST = be.get('host', '127.0.0.1')
 BACKEND_PORT = be.get('port', 8000)
 JWT_ALGO = jwt.get('algorithm', 'HS256')
-JWT_KEY = jwt.get('secret_key', '')
+# ── Per-install JWT secret ──
+# Each desktop install gets a unique secret so tokens can't be forged across
+# machines. Priority: env JWT_SECRET_KEY > <EXE_DIR>/secret.key > generate+persist.
+SECRET_FILE = os.path.join(EXE_DIR, 'secret.key')
+_env_jwt = os.environ.get("JWT_SECRET_KEY")
+if _env_jwt:
+    JWT_KEY = _env_jwt
+elif os.path.isfile(SECRET_FILE):
+    try:
+        with open(SECRET_FILE, 'r', encoding='utf-8') as _f:
+            JWT_KEY = _f.read().strip()
+    except OSError:
+        JWT_KEY = ''
+else:
+    JWT_KEY = ''
 if not JWT_KEY:
-    import secrets
-    JWT_KEY = secrets.token_hex(32)
-    print("[WARN] JWT secret_key not configured, using random temporary key")
+    import secrets as _secrets
+    JWT_KEY = _secrets.token_hex(48)
+    try:
+        with open(SECRET_FILE, 'w', encoding='utf-8') as _f:
+            _f.write(JWT_KEY)
+        try:
+            os.chmod(SECRET_FILE, 0o600)
+        except OSError:
+            pass
+        print("[INFO] Generated per-install JWT secret key -> secret.key")
+    except OSError as _e:
+        print(f"[WARN] Could not persist secret.key ({_e}); using in-memory key for this run")
 REDIS_ENABLED = redis_cfg.get('enabled', False)
 REDIS_HOST = redis_cfg.get('host', '') if REDIS_ENABLED else ''
 DEBUG = be.get('debug', False)
@@ -70,7 +93,7 @@ else:
 # 2. Env overrides — config.json values as fallback (respect env vars)
 # ══════════════════════════════════════════════
 os.environ.setdefault("JWT_ALGORITHM", JWT_ALGO)
-os.environ.setdefault("JWT_SECRET_KEY", JWT_KEY)
+os.environ["JWT_SECRET_KEY"] = JWT_KEY  # force: per-install secret takes precedence
 os.environ.setdefault("REDIS_HOST", REDIS_HOST)
 os.environ.setdefault("DEBUG", str(DEBUG))
 os.environ.setdefault("EXE_DIR", EXE_DIR)

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_pagination
 from app.core.database import get_db
+from app.core.permissions import Permission, require_permission
 from app.schemas.common import ApiResponse, Page
 from app.schemas.policy import (
     DeployStatusMap,
@@ -29,7 +30,7 @@ router = APIRouter(prefix="/policies", tags=["策略管理"])
 @router.post("", response_model=ApiResponse[PolicyDetail], status_code=201)
 async def create_policy(
     req: PolicyCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """创建策略."""
@@ -69,7 +70,7 @@ async def get_policy(
 async def update_policy(
     policy_id: str,
     req: PolicyUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """更新策略（创建新版本）."""
@@ -80,7 +81,7 @@ async def update_policy(
 @router.delete("/{policy_id}", response_model=ApiResponse)
 async def delete_policy(
     policy_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_DELETE)),
     db: AsyncSession = Depends(get_db),
 ):
     """删除策略（软删除）."""
@@ -92,7 +93,7 @@ async def delete_policy(
 async def deploy_policy(
     policy_id: str,
     req: PolicyDeployRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_DEPLOY)),
     db: AsyncSession = Depends(get_db),
 ):
     """下发策略到目标Agent."""
@@ -106,7 +107,7 @@ async def deploy_policy(
 async def toggle_policy(
     policy_id: str,
     req: PolicyToggleRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """切换策略启用/禁用."""
@@ -118,7 +119,7 @@ async def toggle_policy(
 async def rollback_policy(
     policy_id: str,
     req: PolicyRollbackRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
     """回滚到指定版本."""
