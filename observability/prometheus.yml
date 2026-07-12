@@ -1,0 +1,21 @@
+# 麒麟OS安全智能运维Agent —— Prometheus 抓取配置
+# 用法：
+#   prometheus --config.file=prometheus.yml
+# 后端 /metrics 端点：http://127.0.0.1:8000/metrics
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'kylin-agent-monitor'
+
+scrape_configs:
+  - job_name: 'kylin-agent'
+    metrics_path: '/metrics'
+    scheme: http
+    static_configs:
+      - targets: ['127.0.0.1:8000']
+        labels:
+          instance: 'local-agent'
+          env: 'desktop'
+    # 若该 Agent 部署在远程主机，把上面的 127.0.0.1 换成对应 IP 即可
