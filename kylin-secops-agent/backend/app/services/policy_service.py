@@ -8,6 +8,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import commit_with_retry
+
 from app.models.agent import Agent
 from app.models.policy import Policy, PolicyTarget, PolicyVersion
 from app.repositories.agent_repo import AgentRepository
@@ -222,27 +224,55 @@ async def deploy_policy(
 
     now = datetime.now(timezone.utc)
     deployed: List[str] = []
-    for aid in targets:
-        # 幂等：先清理该策略下此Agent的旧下发记录，再写入最新一条
-        await db.execute(
-            delete(PolicyTarget).where(
-                PolicyTarget.policy_id == policy.id,
-                PolicyTarget.agent_id == aid,
+    # 分批提交：每个 (policy_id, agent_id) 的 delete+add 幂等，分批安全，
+    # 可大幅缩短单写事务/写锁持有时间，降低与高频心跳写的锁争用。
+    BATCH_SIZE = 100
+    batch_ids: List[str] = []
+    try:
+        for aid in targets:
+            # 幂等：先清理该策略下此Agent的旧下发记录，再写入最新一条
+            await db.execute(
+                delete(PolicyTarget).where(
+                    PolicyTarget.policy_id == policy.id,
+                    PolicyTarget.agent_id == aid,
+                )
             )
-        )
-        db.add(PolicyTarget(
-            policy_id=policy.id,
-            agent_id=aid,
-            status="deployed",
-            deployed_version=policy.version,
-            deployed_at=now,
-        ))
-        deployed.append(aid)
+            db.add(PolicyTarget(
+                policy_id=policy.id,
+                agent_id=aid,
+                status="deployed",
+                deployed_version=policy.version,
+                deployed_at=now,
+            ))
 
-        # 提升Agent配置版本，触发其下次心跳拉取最新策略
-        agent = await agent_repo.get_by_agent_id(aid)
-        if agent:
-            agent.config_version = (agent.config_version or 0) + 1
+            # 提升Agent配置版本，触发其下次心跳拉取最新策略
+            agent = await agent_repo.get_by_agent_id(aid)
+            if agent:
+                agent.config_version = (agent.config_version or 0) + 1
+
+            batch_ids.append(aid)
+            if len(batch_ids) >= BATCH_SIZE:
+                await db.flush()
+                await commit_with_retry(db)
+                deployed.extend(batch_ids)
+                batch_ids = []
+
+        if batch_ids:
+            await db.flush()
+            await commit_with_retry(db)
+            deployed.extend(batch_ids)
+    except Exception as exc:
+        # 失败语义：前序批次可能已落库、当前批次已回滚；整操作幂等
+        # （重跑会按 (policy_id, agent_id) 覆盖），故直接提示可重跑，
+        # 不做静默部分成功。
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f"策略下发部分失败（已落库 {len(deployed)}/{len(targets)} 个目标，"
+                f"本批次已回滚）。deploy_policy 幂等，可直接重试。原因: {exc}"
+            ),
+        )
 
     policy.deployed_version = policy.version
     policy.last_deployed_at = now
