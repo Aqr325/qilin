@@ -1,9 +1,12 @@
 """Database engine and session management."""
 
+import asyncio
 import logging
+import random
 import uuid
 from typing import AsyncGenerator, Optional
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -64,7 +67,7 @@ def _set_sqlite_pragmas(dbapi_conn, conn_record):
     try:
         cur.execute("PRAGMA foreign_keys=ON")
         cur.execute("PRAGMA journal_mode=WAL")
-        cur.execute("PRAGMA busy_timeout=5000")
+        cur.execute("PRAGMA busy_timeout=15000")
     finally:
         cur.close()
 
@@ -84,13 +87,61 @@ class Base(DeclarativeBase):
     """Base class for all ORM models."""
 
 
+# ── SQLite lock-aware commit (transient SQLITE_BUSY retry) ──
+def _sqlite_errorcode(exc: BaseException) -> Optional[int]:
+    """Best-effort extraction of the underlying SQLite error code."""
+    code = getattr(exc, "sqlite_errorcode", None)
+    if code is None:
+        orig = getattr(exc, "orig", None)
+        code = getattr(orig, "sqlite_errorcode", None)
+    return code
+
+
+def _is_sqlite_busy(exc: BaseException) -> bool:
+    """Precisely detect transient SQLite lock contention (SQLITE_BUSY = 5).
+
+    ONLY matches 'database is locked' / 'database table is locked' (and error
+    code 5). Other OperationalErrors (constraint violations, type mismatches)
+    are intentionally NOT matched so they surface unchanged — we never swallow
+    real errors.
+    """
+    if not isinstance(exc, OperationalError):
+        return False
+    msg = str(exc).lower()
+    if "database is locked" in msg:
+        return True
+    return _sqlite_errorcode(exc) == 5
+
+
+async def commit_with_retry(session: AsyncSession, *, max_retries: int = 5) -> None:
+    """Commit, retrying ONLY on transient SQLite lock contention.
+
+    Bounded exponential backoff with full jitter (20ms → 320ms over 5 attempts).
+    Any non-lock error (e.g. IntegrityError, type errors) is re-raised
+    immediately. Safe to wrap every idempotent write path: a failed commit
+    leaves the transaction un-applied, so re-committing re-applies the same
+    pending changes (atomic, no double-write).
+    """
+    attempt = 0
+    while True:
+        try:
+            await session.commit()
+            return
+        except Exception as exc:  # noqa: BLE001 - narrowed by _is_sqlite_busy
+            if attempt >= max_retries or not _is_sqlite_busy(exc):
+                raise
+            attempt += 1
+            backoff = min(0.5, 0.02 * (2 ** (attempt - 1)))
+            await asyncio.sleep(backoff * (0.5 + random.random()))
+
+
 # ── Dependency ──
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency that provides an async database session."""
     async with async_session_factory() as session:
         try:
             yield session
-            await session.commit()
+            await commit_with_retry(session)
         except Exception:
             await session.rollback()
             raise
@@ -110,11 +161,17 @@ class DatabaseSession:
         return self.session
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
+        if not self.session:
+            return
+        try:
             if exc_type is None:
-                await self.session.commit()
+                await commit_with_retry(self.session)
             else:
                 await self.session.rollback()
+        except Exception:
+            await self.session.rollback()
+            raise
+        finally:
             await self.session.close()
 
 
