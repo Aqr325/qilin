@@ -2,6 +2,8 @@
 
 本目录提供三层可观测能力，覆盖你提出的「日志落盘 / 单机自检 / 接 Prometheus」三项需求。
 
+> 版本：v2.4.6 ｜ 可观测性端点：`/health` 与 `/metrics` **不受 `backend.debug` 影响，始终可用**；`/docs`、`/redoc`、`/api/v1/openapi.json` 仅在 `backend.debug=true` 时挂载（生产默认 `false`，返回 404，详见交付说明「API 文档」节）。
+
 ## 1. 日志落盘（已内置，无需额外配置）
 
 `build/main.js` 已改造，运行时会把日志按天写入安装目录下的 `resources/logs/`：
@@ -61,3 +63,5 @@ prometheus --config.file=prometheus.yml
 | `kylin_agent_health_status` | gauge | `/health` 正常为 1，异常为 0 |
 
 > 注：`/metrics` 为纯标准库 text 格式实现，未引入任何新 Python 依赖，避免 PyInstaller 冻结风险；多机场景建议在反向代理层加 Basic Auth 或局域网白名单保护该端点。
+>
+> **与 `/docs` 的区别**：`/metrics` 与 `/health` 在任何模式下都暴露（即使 `backend.debug=false`），Prometheus 抓取无需开启 DEBUG；而 Swagger UI（`/docs`）、ReDoc（`/redoc`）、OpenAPI schema（`/api/v1/openapi.json`）在 v2.4.6 起被 `DEBUG` 门控，生产态不挂载。因此**监控采集和 API 文档预览是两个独立的开关**，不要为看文档而长期开启 DEBUG。
