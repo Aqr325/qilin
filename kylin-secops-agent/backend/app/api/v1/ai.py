@@ -86,7 +86,7 @@ async def list_conversations(
 
 @router.get("/conversations/{conv_id}", response_model=ApiResponse[ConversationDetail])
 async def get_conversation(
-    conv_id: str,
+    conv_id: uuid.UUID,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -97,7 +97,7 @@ async def get_conversation(
 
 @router.delete("/conversations/{conv_id}", response_model=ApiResponse)
 async def delete_conversation(
-    conv_id: str,
+    conv_id: uuid.UUID,
     current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -153,7 +153,7 @@ async def test_model_config_endpoint(
 
 @router.get("/model-configs/{config_id}", response_model=ApiResponse[AiModelConfig])
 async def get_model_config(
-    config_id: str,
+    config_id: uuid.UUID,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -164,7 +164,7 @@ async def get_model_config(
 
 @router.put("/model-configs/{config_id}", response_model=ApiResponse[AiModelConfig])
 async def update_model_config(
-    config_id: str,
+    config_id: uuid.UUID,
     req: AiModelConfigUpdate,
     current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
@@ -176,7 +176,7 @@ async def update_model_config(
 
 @router.delete("/model-configs/{config_id}", response_model=ApiResponse)
 async def delete_model_config(
-    config_id: str,
+    config_id: uuid.UUID,
     current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -187,7 +187,7 @@ async def delete_model_config(
 
 @router.put("/model-configs/{config_id}/set-default", response_model=ApiResponse[AiModelConfig])
 async def set_default_model_config(
-    config_id: str,
+    config_id: uuid.UUID,
     current_user: dict = Depends(require_permission(Permission.AI_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):

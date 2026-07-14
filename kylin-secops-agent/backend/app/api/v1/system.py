@@ -26,6 +26,7 @@ from app.schemas.system import (
     UserUpdate,
 )
 from app.services import system_service
+import uuid
 
 router = APIRouter(prefix="/system", tags=["系统管理"])
 
@@ -62,7 +63,7 @@ async def list_users(
 
 @router.get("/users/{user_id}", response_model=ApiResponse[UserDetail])
 async def get_user(
-    user_id: str,
+    user_id: uuid.UUID,
     current_user: dict = Depends(require_permission(Permission.SYSTEM_READ)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -73,7 +74,7 @@ async def get_user(
 
 @router.put("/users/{user_id}", response_model=ApiResponse[UserDetail])
 async def update_user(
-    user_id: str,
+    user_id: uuid.UUID,
     req: UserUpdate,
     current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
@@ -85,7 +86,7 @@ async def update_user(
 
 @router.delete("/users/{user_id}", response_model=ApiResponse)
 async def delete_user(
-    user_id: str,
+    user_id: uuid.UUID,
     current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -96,7 +97,7 @@ async def delete_user(
 
 @router.put("/users/{user_id}/status", response_model=ApiResponse[UserDetail])
 async def toggle_user_status(
-    user_id: str,
+    user_id: uuid.UUID,
     req: UserStatusUpdate,
     current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
@@ -122,7 +123,7 @@ async def list_roles(
 
 @router.get("/roles/{role_id}", response_model=ApiResponse[RoleDetail])
 async def get_role(
-    role_id: str,
+    role_id: uuid.UUID,
     current_user: dict = Depends(require_permission(Permission.SYSTEM_READ)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -144,7 +145,7 @@ async def create_role(
 
 @router.put("/roles/{role_id}", response_model=ApiResponse[RoleDetail])
 async def update_role(
-    role_id: str,
+    role_id: uuid.UUID,
     req: RoleUpdate,
     current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
@@ -156,7 +157,7 @@ async def update_role(
 
 @router.delete("/roles/{role_id}", response_model=ApiResponse)
 async def delete_role(
-    role_id: str,
+    role_id: uuid.UUID,
     current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -199,7 +200,7 @@ async def list_login_logs(
 
 @router.patch("/login-logs/{log_id}", response_model=ApiResponse[LoginLog])
 async def update_login_log(
-    log_id: str,
+    log_id: uuid.UUID,
     req: LoginLogUpdate,
     current_user: dict = Depends(require_permission(Permission.SYSTEM_WRITE)),
     db: AsyncSession = Depends(get_db),

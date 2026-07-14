@@ -22,6 +22,7 @@ from app.schemas.alert import (
 )
 from app.schemas.common import ApiResponse, Page
 from app.services import alert_service
+import uuid
 
 router = APIRouter(prefix="/alerts", tags=["告警管理"])
 
@@ -107,7 +108,7 @@ async def export_alerts(
 
 @router.get("/{alert_id}", response_model=ApiResponse[AlertDetail])
 async def get_alert(
-    alert_id: str,
+    alert_id: uuid.UUID,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -118,7 +119,7 @@ async def get_alert(
 
 @router.put("/{alert_id}/status", response_model=ApiResponse[AlertDetail])
 async def update_alert_status(
-    alert_id: str,
+    alert_id: uuid.UUID,
     req: UpdateAlertStatusRequest,
     current_user: dict = Depends(require_permission(Permission.ALERT_WRITE)),
     db: AsyncSession = Depends(get_db),
@@ -146,7 +147,7 @@ async def batch_update_status(
 
 @router.post("/{alert_id}/assign", response_model=ApiResponse[AlertDetail])
 async def assign_alert(
-    alert_id: str,
+    alert_id: uuid.UUID,
     req: AssignAlertRequest,
     current_user: dict = Depends(require_permission(Permission.ALERT_ASSIGN)),
     db: AsyncSession = Depends(get_db),
@@ -160,7 +161,7 @@ async def assign_alert(
 
 @router.get("/{alert_id}/history", response_model=ApiResponse[list[AlertStatusChange]])
 async def get_alert_history(
-    alert_id: str,
+    alert_id: uuid.UUID,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -171,7 +172,7 @@ async def get_alert_history(
 
 @router.get("/{alert_id}/related", response_model=ApiResponse[list[AlertSummary]])
 async def get_related_alerts(
-    alert_id: str,
+    alert_id: uuid.UUID,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -182,7 +183,7 @@ async def get_related_alerts(
 
 @router.post("/{alert_id}/suppress", response_model=ApiResponse[SuppressRule])
 async def suppress_alert(
-    alert_id: str,
+    alert_id: uuid.UUID,
     req: SuppressAlertRequest,
     current_user: dict = Depends(require_permission(Permission.ALERT_SUPPRESS)),
     db: AsyncSession = Depends(get_db),

@@ -23,6 +23,7 @@ from app.schemas.policy import (
     PolicyVersion,
 )
 from app.services import policy_service
+import uuid
 
 router = APIRouter(prefix="/policies", tags=["策略管理"])
 
@@ -57,7 +58,7 @@ async def list_policies(
 
 @router.get("/{policy_id}", response_model=ApiResponse[PolicyDetail])
 async def get_policy(
-    policy_id: str,
+    policy_id: uuid.UUID,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -68,7 +69,7 @@ async def get_policy(
 
 @router.put("/{policy_id}", response_model=ApiResponse[PolicyDetail])
 async def update_policy(
-    policy_id: str,
+    policy_id: uuid.UUID,
     req: PolicyUpdate,
     current_user: dict = Depends(require_permission(Permission.POLICY_WRITE)),
     db: AsyncSession = Depends(get_db),
@@ -80,7 +81,7 @@ async def update_policy(
 
 @router.delete("/{policy_id}", response_model=ApiResponse)
 async def delete_policy(
-    policy_id: str,
+    policy_id: uuid.UUID,
     current_user: dict = Depends(require_permission(Permission.POLICY_DELETE)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -91,7 +92,7 @@ async def delete_policy(
 
 @router.post("/{policy_id}/deploy", response_model=ApiResponse)
 async def deploy_policy(
-    policy_id: str,
+    policy_id: uuid.UUID,
     req: PolicyDeployRequest,
     current_user: dict = Depends(require_permission(Permission.POLICY_DEPLOY)),
     db: AsyncSession = Depends(get_db),
@@ -105,7 +106,7 @@ async def deploy_policy(
 
 @router.post("/{policy_id}/toggle", response_model=ApiResponse[PolicyDetail])
 async def toggle_policy(
-    policy_id: str,
+    policy_id: uuid.UUID,
     req: PolicyToggleRequest,
     current_user: dict = Depends(require_permission(Permission.POLICY_WRITE)),
     db: AsyncSession = Depends(get_db),
@@ -117,7 +118,7 @@ async def toggle_policy(
 
 @router.put("/{policy_id}/versions", response_model=ApiResponse[PolicyDetail])
 async def rollback_policy(
-    policy_id: str,
+    policy_id: uuid.UUID,
     req: PolicyRollbackRequest,
     current_user: dict = Depends(require_permission(Permission.POLICY_WRITE)),
     db: AsyncSession = Depends(get_db),
@@ -131,7 +132,7 @@ async def rollback_policy(
 
 @router.get("/{policy_id}/versions", response_model=ApiResponse[list[PolicyVersion]])
 async def get_policy_versions(
-    policy_id: str,
+    policy_id: uuid.UUID,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -142,7 +143,7 @@ async def get_policy_versions(
 
 @router.get("/{policy_id}/deploy-status", response_model=ApiResponse[DeployStatusMap])
 async def get_deploy_status(
-    policy_id: str,
+    policy_id: uuid.UUID,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
