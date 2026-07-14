@@ -114,6 +114,19 @@ async def get_current_user(
             detail="User account is disabled",
         )
 
+    # Enforce mandatory first-login password change (H1)
+    if getattr(user, "must_change_password", False):
+        _CHANGE_PWD_PATHS = {
+            "/api/v1/auth/me/password",
+            "/api/v1/auth/change-password",
+            "/api/v1/auth/logout",
+        }
+        if request.url.path not in _CHANGE_PWD_PATHS:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="请先修改初始密码后再继续使用系统。",
+            )
+
     return {
         "id": str(user.id),
         "username": user.username,
@@ -121,6 +134,7 @@ async def get_current_user(
         "email": user.email,
         "roles": user.role_list,
         "permissions": user.permission_list,
+        "must_change_password": user.must_change_password,
     }
 
 

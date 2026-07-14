@@ -120,6 +120,34 @@ def _resolve_seed_password(username: str) -> str:
     # are flagged must_change_password to force a reset on first login.
     return secrets.token_urlsafe(24)
 
+def _write_bootstrap_file(passwords: dict) -> None:
+    """Persist initial seed passwords to a local file for first-run retrieval.
+
+    Seed users are created with ``must_change_password=True`` and a per-install
+    random password (when no KYLIN_SEED_PASSWORD is set). The only place the
+    plaintext passwords are written down is this local file (0600), so the
+    operator can log in once and is then forced to change them.
+    """
+    try:
+        data_dir = os.path.join(os.getcwd(), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        path = os.path.join(data_dir, "bootstrap.txt")
+        lines = [
+            "# 麒麟OS安全智能运维Agent 初始账户口令（首次登录后请立即修改）",
+            "",
+        ]
+        for username, pwd in passwords.items():
+            lines.append(f"{username}: {pwd}")
+        with open(path, "w", encoding="utf-8") as _bf:
+            _bf.write("\n".join(lines) + "\n")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    except OSError as e:
+        logger.warning("无法写入 bootstrap.txt: %s", e)
+
+
 ROLE_PERMISSIONS: dict[str, list[str]] = {
     "admin": [p.value for p in Permission],
     "operator": [

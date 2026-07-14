@@ -79,6 +79,7 @@ class UserProfile(BaseModel):
     last_login_at: Optional[datetime] = None
     last_login_ip: Optional[str] = None
     password_changed_at: Optional[datetime] = None
+    must_change_password: bool = True
     roles: List[RoleSummary] = Field(default_factory=list)
     permissions: List[str] = Field(default_factory=list)
     created_at: Optional[datetime] = None
