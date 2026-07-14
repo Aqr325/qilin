@@ -45,9 +45,39 @@ DB_PATH = os.path.join(DATA_DIR, "kylin_secops.db")
 # ══════════════════════════════════════════════════════════════
 
 os.environ["JWT_ALGORITHM"] = "HS256"
-os.environ["JWT_SECRET_KEY"] = "kylin-secops-dev-key-2026-local"
+
+# ── Per-install JWT secret (NO hardcoded key) ──
+# Priority: env JWT_SECRET_KEY > <DATA_DIR>/secret.key > generate + persist (0600).
+# Mirrors backend_entry.py so every desktop install signs tokens with its own key.
+_SECRET_FILE = os.path.join(DATA_DIR, "secret.key")
+_env_jwt = os.environ.get("JWT_SECRET_KEY")
+if _env_jwt:
+    _JWT_KEY = _env_jwt
+elif os.path.isfile(_SECRET_FILE):
+    try:
+        with open(_SECRET_FILE, "r", encoding="utf-8") as _sf:
+            _JWT_KEY = _sf.read().strip()
+    except OSError:
+        _JWT_KEY = ""
+else:
+    _JWT_KEY = ""
+if not _JWT_KEY:
+    import secrets as _secrets
+    _JWT_KEY = _secrets.token_hex(48)
+    try:
+        with open(_SECRET_FILE, "w", encoding="utf-8") as _sf:
+            _sf.write(_JWT_KEY)
+        try:
+            os.chmod(_SECRET_FILE, 0o600)
+        except OSError:
+            pass
+    except OSError:
+        pass
+os.environ["JWT_SECRET_KEY"] = _JWT_KEY
+
 os.environ["REDIS_HOST"] = ""
-os.environ["DEBUG"] = "True"
+# DEBUG is NEVER forced on. Enable only via explicit env KYLIN_DEBUG=True.
+os.environ["DEBUG"] = os.environ.get("KYLIN_DEBUG", "False")
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{DB_PATH}"
 
 import sqlalchemy.types as sa_types
@@ -251,15 +281,15 @@ if __name__ == "__main__":
     # Start uvicorn
     import uvicorn
     print()
-    print(f"  [API] http://localhost:8000")
-    print(f"  [Docs] http://localhost:8000/docs")
+    print(f"  [API] http://localhost:8001")
+    print(f"  [Docs] http://localhost:8001/docs")
     print(f"  [Login] admin / (auto-generated or KYLIN_SEED_PASSWORD env var)")
     print()
 
     uvicorn.run(
         app,
         host="127.0.0.1",
-        port=8000,
+        port=8001,
         reload=False,
         log_level="info",
     )

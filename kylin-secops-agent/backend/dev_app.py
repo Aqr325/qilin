@@ -9,9 +9,15 @@ import sys
 
 # ── Apply env overrides FIRST ──
 os.environ.setdefault("JWT_ALGORITHM", "HS256")
-os.environ.setdefault("JWT_SECRET_KEY", "kylin-secops-dev-key-2026-local")
+# JWT_SECRET_KEY must come from the environment (or a per-install secret.key).
+# If unset, generate an ephemeral in-memory key for this dev session — never
+# hardcode a shared secret that could forge tokens across installs.
+import secrets as _secrets
+if not os.environ.get("JWT_SECRET_KEY"):
+    os.environ["JWT_SECRET_KEY"] = _secrets.token_hex(48)
 os.environ.setdefault("REDIS_HOST", "")
-os.environ.setdefault("DEBUG", "True")
+# dev_app is for local development only; DEBUG stays off unless explicitly set.
+os.environ.setdefault("DEBUG", os.environ.get("KYLIN_DEBUG", "False"))
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./kylin_secops_dev.db"
 
 # ── Patch PostgreSQL types to SQLite-compatible equivalents ──

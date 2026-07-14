@@ -11,6 +11,33 @@ from sqlalchemy import select
 
 from app.models.ai import AiConversation, AiModelConfig
 from app.core.security import decrypt_api_key, encrypt_api_key
+
+import logging as _ai_log
+import re as _re
+
+_LOGGER = _ai_log.getLogger(__name__)
+_API_KEY_RE = _re.compile(
+    r"(?i)(Bearer\s+[A-Za-z0-9._\-]+|sk-[A-Za-z0-9]{8,}|"
+    r"x-api-key[=:\s]+[^\s,\"]+|api[_-]?key[=:\s]+[^\s,\"]+)"
+)
+
+
+def _redact(text: str) -> str:
+    """Strip credentials/keys from a string before logging."""
+    return _API_KEY_RE.sub("***", text or "")
+
+
+def _safe_ai_error(
+    status: Optional[int] = None,
+    raw_detail: str = "",
+    exc: Optional[Exception] = None,
+) -> str:
+    """Return a generic, non-leaking error message; log full detail server-side."""
+    if exc is not None:
+        _LOGGER.exception("AI model call failed: %s", _redact(str(exc)))
+    else:
+        _LOGGER.error("AI model call HTTP %s: %s", status, _redact(str(raw_detail)))
+    return "模型调用失败，请联系管理员查看后端日志"
 from app.schemas.ai import (
     AIFeedbackRequest,
     AIPlaybookResponse,
@@ -133,7 +160,7 @@ async def _call_model_api(
                             detail = error_data.get("error", {}).get("message", str(error_data))
                         except Exception:
                             detail = await resp.text() if resp.headers.get("content-type", "").startswith("text") else ""
-                        return f"模型调用失败 (HTTP {resp.status}): {detail}", model_name
+                        return _safe_ai_error(status=resp.status, raw_detail=detail), model_name
 
         elif provider == "anthropic":
             import aiohttp
@@ -156,7 +183,7 @@ async def _call_model_api(
                             detail = error_data.get("error", {}).get("message", str(error_data))
                         except Exception:
                             detail = await resp.text() if resp.headers.get("content-type", "").startswith("text") else ""
-                        return f"模型调用失败 (HTTP {resp.status}): {detail}", model_name
+                        return _safe_ai_error(status=resp.status, raw_detail=detail), model_name
 
         elif provider == "ollama":
             import aiohttp
@@ -182,7 +209,7 @@ async def _call_model_api(
             return f"不支持的提供商: {provider}", model_name
 
     except Exception as e:
-        return f"模型调用异常: {str(e)}", model_name
+        return _safe_ai_error(exc=e), model_name
 
 
 # Provider default base URLs (when api_url not given)
