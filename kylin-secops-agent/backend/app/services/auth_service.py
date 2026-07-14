@@ -132,6 +132,7 @@ async def login(
             "last_login_at": user.last_login_at,
             "last_login_ip": user.last_login_ip,
             "password_changed_at": user.password_changed_at,
+            "must_change_password": user.must_change_password,
             "roles": user.role_list,
             "permissions": user.permission_list,
             "created_at": user.created_at,
@@ -236,6 +237,7 @@ async def change_password(
 
     user.password_hash = hash_password(new_password)
     user.password_changed_at = datetime.now(timezone.utc)
+    user.must_change_password = False
     await db.flush()
 
 

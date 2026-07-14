@@ -277,6 +277,28 @@ async def _migrate_bigint_pk():
                 logger.warning("迁移 %s 结构变更失败（保留原表）: %s", name, e)
 
 
+async def _ensure_must_change_column():
+    """Migration: add must_change_password to users if an older DB lacks it."""
+    try:
+        import logging as _db_log
+        from sqlalchemy import text as sa_text
+
+        _log = _db_log.getLogger(__name__)
+        async with async_session_factory() as session:
+            result = await session.execute(sa_text("PRAGMA table_info(users)"))
+            cols = {row[1] for row in result}
+            if "must_change_password" not in cols:
+                await session.execute(
+                    sa_text(
+                        "ALTER TABLE users ADD COLUMN must_change_password "
+                        "BOOLEAN NOT NULL DEFAULT 1"
+                    )
+                )
+                await session.commit()
+    except Exception as e:  # pragma: no cover - best-effort migration
+        _log.warning("must_change_password migration skipped: %s", e)
+
+
 async def init_db():
     """Create all tables, migrate schema, build indexes, seed defaults."""
     async with engine.begin() as conn:
@@ -287,6 +309,9 @@ async def init_db():
 
     # ── Create indexes ──
     await _ensure_indexes()
+
+    # ── Migrate: ensure must_change_password column exists ──
+    await _ensure_must_change_column()
 
     # Seed roles, permissions, and default users on first run
     from datetime import datetime, timezone
@@ -376,19 +401,28 @@ async def init_db():
         result = await session.execute(select(func.count(User.id)))
         user_count = result.scalar_one()
         if user_count == 0:
+            bootstrap = {}
             for su in DEFAULT_SEED_USERS:
                 role = role_map.get(su["role"])
+                _pwd = _resolve_seed_password(su["username"])
                 session.add(User(
                     id=_uuid.uuid4(),
                     username=su["username"],
-                    password_hash=hash_password(_resolve_seed_password(su["username"])),
+                    password_hash=hash_password(_pwd),
                     display_name=su["display_name"],
                     email=su["email"],
                     is_active=True,
+                    must_change_password=True,
                     password_changed_at=datetime.now(timezone.utc),
                 ))
+                bootstrap[su["username"]] = _pwd
                 # Roles are linked via backref after flush
             await session.flush()
+            try:
+                from app.core.permissions import _write_bootstrap_file
+                _write_bootstrap_file(bootstrap)
+            except Exception:
+                pass
 
         # Link users to roles (direct raw SQL to avoid UUID serialization in ORM)
         from sqlalchemy import text as sa_text

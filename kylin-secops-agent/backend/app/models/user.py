@@ -106,6 +106,9 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     password_changed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, server_default="1", default=True, nullable=False
+    )
 
     roles: Mapped[List["Role"]] = relationship(
         "Role", secondary=user_roles, back_populates="users", lazy="selectin",

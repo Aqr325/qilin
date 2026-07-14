@@ -160,9 +160,11 @@ async def seed_db():
                 sa_text("""
                     INSERT INTO users (id, username, password_hash, display_name, email,
                                        is_active, created_at, updated_at,
-                                       password_changed_at, login_attempts)
+                                       password_changed_at, login_attempts,
+                                       must_change_password)
                     VALUES (:id, :username, :password_hash, :display_name, :email,
-                            1, :created_at, :updated_at, :created_at, 0)
+                            1, :created_at, :updated_at, :created_at, 0,
+                            1)
                 """),
                 {
                     "id": user_id,

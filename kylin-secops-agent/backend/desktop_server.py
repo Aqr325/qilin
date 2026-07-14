@@ -211,20 +211,28 @@ async def _seed_defaults():
             role.permissions = [perm_map[c] for c in perm_codes if c in perm_map]
 
         # — Default users —
+        bootstrap = {}
         for su in DEFAULT_SEED_USERS:
             role = role_map.get(su["role"])
             if not role:
                 continue
+            _pwd = _resolve_seed_password(su["username"])
             session.add(User(
                 id=_uuid.uuid4(), username=su["username"],
-                password_hash=hash_password(_resolve_seed_password(su["username"])),
+                password_hash=hash_password(_pwd),
                 display_name=su["display_name"],
                 email=su["email"],
                 is_active=True,
+                must_change_password=True,
                 password_changed_at=datetime.now(timezone.utc),
             ))
-            u = session.new  # placeholder — flush first to get ID
+            bootstrap[su["username"]] = _pwd
         await session.flush()
+        try:
+            from app.core.permissions import _write_bootstrap_file
+            _write_bootstrap_file(bootstrap)
+        except Exception:
+            pass
 
         # Link users to roles
         for su in DEFAULT_SEED_USERS:
