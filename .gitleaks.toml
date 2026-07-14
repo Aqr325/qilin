@@ -1,0 +1,51 @@
+# .gitleaks.toml — 密钥扫描门禁配置
+#
+# 用途：在 CI 中阻止密钥 / 口令 / 私钥泄漏到仓库。
+# 本地运行：gitleaks detect --source . --config .gitleaks.toml --redact --verbose
+# GitHub Actions 示例：
+#   - name: gitleaks
+#     uses: gitleaks/gitleaks-action@v2
+#     with:
+#       config-path: .gitleaks.toml
+#
+# 设计原则：
+#   1. 继承 gitleaks 默认规则集（覆盖通用 API Key、私钥、密码、token 等）。
+#   2. 仅对「第三方依赖 / 构建产物 / 本地工作区 / 运行期生成物」做路径忽略，
+#      不对业务源码做“掩耳盗铃”式放行。
+#   3. 对已知的非保密占位符与已废弃测试口令显式放行，避免误报阻断合法提交。
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "仓库级误报放行：依赖、构建产物、本地工作区、运行期密钥与已知占位符"
+paths = [
+  '''(?i).*node_modules/.*''',
+  '''(?i).*/dist/.*''',
+  '''(?i).*/build/.*''',
+  '''(?i).*\.workbuddy/.*''',
+  '''(?i).*asar_tmp/.*''',
+  '''(?i).*alembic/.*''',
+  '''(?i).*electron-app/release/.*''',
+  '''(?i).*desktop/release/.*''',
+  '''(?i).*/venv/.*''',
+  '''(?i).*/_internal/.*''',
+  '''(?i).*secret\.key$''',
+  '''(?i).*bootstrap\.txt$''',
+  '''(?i).*\.db$''',
+  '''(?i).*\.db-shm$''',
+  '''(?i).*\.db-wal$''',
+  '''(?i).*\.lock$''',
+]
+regexes = [
+  '''(?i)CHANGE_ME[A-Z0-9_]*''',        # .env.example 等非保密占位符
+]
+
+# 已废弃的静态测试口令（v2.4.5 起改为每次安装随机生成 + 强制改密）。
+# 仅作历史误报放行；新引入的真实口令仍由默认规则集捕获。
+[[rules]]
+id = "kylin-retired-test-password"
+description = "已知已废弃的静态测试口令 KylinSecOps@2026（v2.4.5 起不再使用）"
+regex = '''(?i)KylinSecOps@2026'''
+keywords = ["KylinSecOps"]
+allowlist = { paths = ['''(?i).*\.workbuddy/.*''', '''(?i).*overview\.md$'''] }

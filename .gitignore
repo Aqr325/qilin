@@ -40,11 +40,18 @@ temp/
 # 开发环境
 *.db
 *.sqlite3
+*.db-shm
+*.db-wal
 .env
 .venv/
 venv/
 desktop-build-env/
 _internal/
+
+# 运行期生成的密钥与数据（per-install，禁止提交）
+secret.key
+bootstrap.txt
+data/bootstrap.txt
 
 # 编辑器
 .vscode/
