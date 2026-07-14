@@ -56,7 +56,11 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
-    openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
+    # M3 (P0): never expose the full API schema in production. openapi.json is
+    # mounted only when DEBUG is on (local dev). In prod it is None → no route.
+    openapi_url=(
+        f"{settings.API_V1_PREFIX}/openapi.json" if settings.DEBUG else None
+    ),
 )
 
 # ── Middleware Chain ──
