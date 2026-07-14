@@ -2,6 +2,8 @@
 
 > 更新于 2026-07-07（含 v2.1.2：前端数据持久化修复与 AgentTask 真实化）
 
+> ⚠️ **安全模型已更新（v2.4.5）**：已彻底移除所有静态/共享口令。现每次安装首次启动随机生成 4 个账号口令并写入 `data/bootstrap.txt`（0600），且强制首次登录改密；交付包不再预置 `kylin_secops.db`、不再随附任何已知口令。下文 2026-07-07 段落为历史记录，其中提到的静态口令均已废弃，请勿沿用。
+
 ## 一、项目状态
 
 功能开发 → 安全审计 → P0 漏洞修复 → 回归测试 → 桌面程序打包 → 登录可用性修复，全部完成，交付物就绪。
@@ -30,13 +32,13 @@
 **根因**：`desktop/main.js` 的 `startBackend()` 仅注入 `PYTHONUNBUFFERED`，未注入 `KYLIN_SEED_PASSWORD`，全仓也无人设置该变量。
 
 **修复**：
-1. 桌面版 `config.json` 增加 `seed_password: "KylinSecOps@2026"`（交付目录 / 打包源 / 源码副本三处同步）
+1. 桌面版 `config.json` 增加 `seed_password: "（历史静态测试口令，v2.4.5 起已废弃）"`（交付目录 / 打包源 / 源码副本三处同步）
 2. `main.js` 启动时读取 config 的 `seed_password`，作为 `KYLIN_SEED_PASSWORD` 注入后端进程环境变量
 3. 重新打包桌面版（`electron-builder --dir`，签名跳过），同步交付目录
 
-**验证（2026-07-07 登录冒烟测试）**：用全新空库 + `KYLIN_SEED_PASSWORD=KylinSecOps@2026` 启动 `backend.exe`，`GET /health` 返回 200；`POST /api/v1/auth/login` 用 `admin / KylinSecOps@2026` 返回 200 及 JWT，`admin / WrongPass@123` 返回 401（拒绝错误密码）；数据库种子化出 4 个用户。证明「config.seed_password → 注入 KYLIN_SEED_PASSWORD → 后端按已知密码种子化」链路真实生效。
+**验证（2026-07-07 登录冒烟测试）**：用全新空库 + `KYLIN_SEED_PASSWORD=（历史静态测试口令，v2.4.5 起已废弃）` 启动 `backend.exe`，`GET /health` 返回 200；`POST /api/v1/auth/login` 用 `admin / （历史静态测试口令，v2.4.5 起已废弃）` 返回 200 及 JWT，`admin / WrongPass@123` 返回 401（拒绝错误密码）；数据库种子化出 4 个用户。证明「config.seed_password → 注入 KYLIN_SEED_PASSWORD → 后端按已知密码种子化」链路真实生效。
 
-**交付库修正**：原交付 `kylin_secops.db` 是修复前的遗留半成品（仅 3 个用户、密码为不可见的随机串，导致登不进）。已替换为冒烟测试验证通过的数据库——4 个账号（补齐 viewer）、17 张表齐全、密码统一为 `KylinSecOps@2026`。双保险：即使首次启动注入有意外，已知密码仍可用。
+**交付库修正**：原交付 `kylin_secops.db` 是修复前的遗留半成品（仅 3 个用户、密码为不可见的随机串，导致登不进）。已替换为冒烟测试验证通过的数据库——4 个账号（补齐 viewer）、17 张表齐全、密码统一为 `（历史静态测试口令，v2.4.5 起已废弃）`。双保险：即使首次启动注入有意外，已知密码仍可用。
 
 ## 四、前端数据持久化与 AgentTask 真实化（v2.1.2，2026-07-07）
 
@@ -57,19 +59,21 @@
 | 主程序 | `麒麟OS安全运维_桌面程序/麒麟OS安全运维.exe` |
 | 后端 | `resources/backend.exe` |
 | 前端 | `resources/frontend/` |
-| 配置 | `resources/config.json`（含 `seed_password`） |
-| 数据库 | `resources/kylin_secops.db`（已预置 4 个账号，密码 `KylinSecOps@2026`，经验证可登录） |
+| 配置 | `resources/config.json`（v2.4.5 起不再含 `seed_password`，口令随机生成） |
+| 数据库 | 首次启动自动建库于 `resources/kylin_secops.db`（4 个账号，口令随机写入 `data/bootstrap.txt`） |
 
-## 六、默认登录凭证
+## 六、默认登录凭证（v2.4.5 起：随机口令 + 强制改密）
 
-| 角色 | 用户名 | 密码 |
-|------|--------|------|
-| 管理员 | admin | KylinSecOps@2026 |
-| 运维 | operator | KylinSecOps@2026 |
-| 审计 | auditor | KylinSecOps@2026 |
-| 查看 | viewer | KylinSecOps@2026 |
+首次启动自动建库并随机生成 4 个账号口令，写入本地 `data/bootstrap.txt`（权限 0600，仅本机可读）。**所有账号均标记 `must_change_password`，首次登录必须修改口令后才能继续使用。**
 
-> 已内置默认密码，登录后建议立即修改。
+| 角色 | 用户名 | 初始口令获取 |
+|------|--------|--------------|
+| 管理员 | admin | 见 `data/bootstrap.txt` |
+| 运维 | operator | 见 `data/bootstrap.txt` |
+| 审计 | auditor | 见 `data/bootstrap.txt` |
+| 查看 | viewer | 见 `data/bootstrap.txt` |
+
+> 初始口令为每次安装随机生成，**不会跨安装相同**，请妥善保管 `data/bootstrap.txt` 并在首次登录后立即修改。
 
 ## 七、运行方式
 
