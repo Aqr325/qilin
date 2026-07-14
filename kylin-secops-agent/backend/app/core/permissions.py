@@ -114,17 +114,11 @@ def _resolve_seed_password(username: str) -> str:
         return per_user_pwd
 
     # 3. Auto-generated strong random password (24 chars)
-    generated = secrets.token_urlsafe(24)
-    debug = os.environ.get("DEBUG", "").lower() == "true"
-    if debug:
-        logger.warning(
-            "⚠️  Seed user '%s': generated random password. "
-            "Set KYLIN_SEED_PASSWORD or %s to override.",
-            username,
-            per_user_key,
-        )
-        logger.warning("⚠️  Password: %s", generated)
-    return generated
+    # NOTE: the generated password is intentionally NOT written to any log or
+    # stdout — doing so would leak credentials. Operators retrieve it from the
+    # local bootstrap file on first run (see seed logic), and all seed users
+    # are flagged must_change_password to force a reset on first login.
+    return secrets.token_urlsafe(24)
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
     "admin": [p.value for p in Permission],

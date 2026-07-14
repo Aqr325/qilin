@@ -4,10 +4,11 @@ import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # ── Observability state (Prometheus-style, pure stdlib exposition) ──
@@ -73,6 +74,34 @@ app.add_middleware(_MetricsMiddleware)
 
 # ── Mount Routers ──
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+
+# ── Global exception handlers (security: never leak internals) ──
+import logging as _app_log
+
+_APP_LOGGER = _app_log.getLogger("kylin.errors")
+
+
+@app.exception_handler(ValueError)
+async def _value_error_handler(request: Request, exc: ValueError):
+    # Covers malformed UUID/path params etc. → clean 400 instead of leaking 500.
+    return JSONResponse(
+        status_code=400, content={"detail": "请求参数格式无效。"}
+    )
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    _APP_LOGGER.exception(
+        "Unhandled exception: %s %s", request.method, request.url.path
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "服务器内部错误，请联系管理员。",
+            "request_id": request.headers.get("X-Request-ID", ""),
+        },
+    )
 
 
 # ── Custom Doc Endpoints (only in debug/dev mode) ──

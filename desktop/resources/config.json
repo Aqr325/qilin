@@ -10,7 +10,6 @@
     },
     "jwt": {
       "algorithm": "HS256",
-      "secret_key": "kylin-secops-desktop-key-2026",
       "expire_minutes": 480
     },
     "redis": {
@@ -19,11 +18,6 @@
       "port": 6379,
       "db": 0,
       "password": ""
-    },
-    "cors": {
-      "origins": [
-        "*"
-      ]
     }
   },
   "frontend": {
