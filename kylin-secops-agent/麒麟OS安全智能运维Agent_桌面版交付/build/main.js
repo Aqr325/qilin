@@ -62,11 +62,14 @@ let mainWindow = null
 let tray = null
 let backendProcess = null
 let isQuitting = false
+let isStoppingBackend = false
+let backendRestartCount = 0   // consecutive crash restarts; reset to 0 on successful ready
 
 // ═════════════════════════════════════════════
 // Backend Process Management
 // ═════════════════════════════════════════════
 function startBackend() {
+  isStoppingBackend = false
   const backendExe = getBackendExePath()
 
   console.log(`[Desktop] Backend exe: ${backendExe}`)
@@ -109,6 +112,7 @@ function startBackend() {
       })
 
       const onReady = () => {
+        backendRestartCount = 0
         console.log('[Desktop] Backend is ready!')
         resolve()
       }
@@ -137,12 +141,16 @@ function startBackend() {
       backendProcess.on('exit', (code) => {
         console.log(`[Desktop] Backend exited with code ${code}`)
         backendProcess = null
-        // Auto-restart backend if it crashed unexpectedly (max 3 retries)
+        // Never auto-restart when we intentionally stopped/quit the app.
+        if (isQuitting || isStoppingBackend) return
+        // Auto-restart backend if it crashed unexpectedly (max 3 retries).
+        // The counter resets to 0 once the backend reaches a healthy "ready"
+        // state (see onReady), so transient later crashes still get a fresh
+        // set of 3 attempts instead of being permanently abandoned.
         if (code !== 0 && code !== null) {
-          const restartCount = (global.__backendRestartCount || 0) + 1
-          global.__backendRestartCount = restartCount
-          if (restartCount <= 3) {
-            console.log(`[Desktop] Restarting backend (attempt ${restartCount}/3)...`)
+          backendRestartCount += 1
+          if (backendRestartCount <= 3) {
+            console.log(`[Desktop] Restarting backend (attempt ${backendRestartCount}/3)...`)
             setTimeout(() => startBackend(), 1000)
           } else {
             console.error('[Desktop] Backend crashed 3 times, giving up.')
@@ -167,6 +175,7 @@ function startBackend() {
 
 function stopBackend() {
   if (backendProcess) {
+    isStoppingBackend = true
     console.log('[Desktop] Stopping backend...')
     try {
       if (process.platform === 'win32') {
