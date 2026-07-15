@@ -48,6 +48,12 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await api.get<User>('/auth/me')
       user.value = res
       isAuthenticated.value = true
+      // 还原登录态时也要检查强制改密标志：若用户上次关掉了改密弹窗，
+      // 重新打开应用后必须再次弹出，否则会带着 must_change_password=True
+      // 绕过弹窗去操作业务接口，被后端 403 拦截（表现为"保存失败/服务器配置错误"）。
+      if (res.must_change_password) {
+        needsPasswordChange.value = true
+      }
     } catch {
       api.setToken(null)
       api.setRefreshToken(null)
