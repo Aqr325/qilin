@@ -11,7 +11,7 @@ from pydantic import field_validator
 class Settings(BaseSettings):
     # ── Application Info ──
     PROJECT_NAME: str = "麒麟OS安全智能运维Agent"
-    VERSION: str = "2.4.8"
+    VERSION: str = "2.4.9"
     API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = False
 
@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     LOCKOUT_DURATION_MINUTES: int = 15
     PASSWORD_MIN_LENGTH: int = 12
     MFA_ENABLED: bool = False
-    AGENT_BOOTSTRAP_TOKEN: Optional[str] = None  # bootstrap token required for POST /agent/register (None = registration disabled)
+    AGENT_BOOTSTRAP_TOKEN: str = "kylin-agent-bootstrap-2026"  # bootstrap token required for POST /agent/register and heartbeat auto-register
 
     # ── Agent ──
     AGENT_HEARTBEAT_TIMEOUT: int = 30  # seconds

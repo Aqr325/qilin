@@ -53,6 +53,20 @@
         <div class="mini-stat-value">{{ agentsStore.stats.avgMem }}%</div>
         <div class="mini-stat-label">平均内存</div>
       </div>
+      <div v-if="agentsStore.localStatus.cpu_percent != null" class="mini-stat-card local-status-card">
+        <svg viewBox="0 0 14 14" style="width:10px;height:10px;flex-shrink:0;" fill="none" stroke="var(--color-accent-500)" stroke-width="1.5" stroke-linecap="round">
+          <rect x="2" y="3" width="10" height="8" rx="1"/><path d="M2 6h10"/>
+        </svg>
+        <div class="mini-stat-value">{{ agentsStore.localStatus.cpu_percent }}%</div>
+        <div class="mini-stat-label">本机CPU</div>
+      </div>
+      <div v-if="agentsStore.localStatus.memory" class="mini-stat-card local-status-card">
+        <svg viewBox="0 0 14 14" style="width:10px;height:10px;flex-shrink:0;" fill="none" stroke="var(--color-medium)" stroke-width="1.5" stroke-linecap="round">
+          <rect x="2" y="2" width="10" height="10" rx="1"/><path d="M5 5h4M5 8h4"/>
+        </svg>
+        <div class="mini-stat-value">{{ agentsStore.localStatus.memory.percent }}%</div>
+        <div class="mini-stat-label">本机内存</div>
+      </div>
     </div>
 
     <!-- Agent List -->
@@ -606,6 +620,7 @@ async function loadPolicies() {
 
 onMounted(() => {
   agentsStore.fetchAgents()
+  agentsStore.fetchLocalStatus()
   loadPolicies()
 })
 </script>
@@ -649,7 +664,18 @@ onMounted(() => {
 .mini-stat-dot.online { background: var(--color-status-online); }
 .mini-stat-dot.offline { background: var(--color-status-offline); }
 .mini-stat-dot.error { background: var(--color-status-error); }
-.mini-stat-dot.pending { background: var(--color-status-pending); }
+.mini-stat-card.local-status-card {
+  background: linear-gradient(135deg, var(--color-accent-500), var(--color-medium));
+  border: none;
+  color: #fff;
+}
+.mini-stat-card.local-status-card .mini-stat-value {
+  color: #fff;
+  font-weight: var(--font-weight-bold);
+}
+.mini-stat-card.local-status-card .mini-stat-label {
+  color: rgba(255,255,255,0.85);
+}
 
 .mini-stat-value {
   font-size: var(--text-h3);
@@ -932,6 +958,9 @@ onMounted(() => {
 
 @media (max-width: 1200px) {
   .agent-stats-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 1400px) {
+  .agent-stats-grid { grid-template-columns: repeat(8, 1fr); }
 }
 
 @media (max-width: 768px) {

@@ -39,7 +39,7 @@ async def validate_agent_token(
     x_agent_token: str = Header(None, alias="X-Agent-Token"),
     db: AsyncSession = Depends(get_db),
 ):
-    """验证Agent通信令牌。"""
+    """验证Agent通信令牌."""
     if not x_agent_token:
         raise HTTPException(status_code=401, detail="Missing X-Agent-Token header")
     from sqlalchemy import select
@@ -53,14 +53,38 @@ async def validate_agent_token(
     return agent
 
 
+async def validate_agent_token_or_bootstrap(
+    x_agent_token: str = Header(None, alias="X-Agent-Token"),
+    x_bootstrap_token: str = Header(None, alias="X-Agent-Bootstrap-Token"),
+    db: AsyncSession = Depends(get_db),
+):
+    """验证Agent通信令牌，支持未认证 Agent 通过 bootstrap token 首次心跳自动注册。"""
+    # 1. 已注册 Agent：用 credential 验证
+    if x_agent_token:
+        from sqlalchemy import select
+        result = await db.execute(
+            select(Agent).where(Agent.credential == x_agent_token).where(Agent.is_deleted == False)
+        )
+        agent = result.scalar_one_or_none()
+        if not agent:
+            raise HTTPException(status_code=401, detail="Invalid agent token")
+        return agent
+
+    # 2. 未注册 Agent：用 bootstrap token 验证（首次心跳自动注册）
+    if x_bootstrap_token and hmac.compare_digest(x_bootstrap_token, settings.AGENT_BOOTSTRAP_TOKEN or ""):
+        return None  # None 表示未注册，交由 process_heartbeat 自动注册
+
+    raise HTTPException(status_code=401, detail="Missing X-Agent-Token or X-Agent-Bootstrap-Token header")
+
+
 @router.post("/heartbeat", response_model=ApiResponse[HeartbeatResponse])
 async def agent_heartbeat(
     req: HeartbeatRequest,
     request: Request,
-    agent: Agent = Depends(validate_agent_token),
+    agent: Agent = Depends(validate_agent_token_or_bootstrap),
     db: AsyncSession = Depends(get_db),
 ):
-    """Agent心跳上报."""
+    """Agent心跳上报。支持已注册 Agent（X-Agent-Token）和未注册 Agent 首次心跳自动注册（X-Agent-Bootstrap-Token）。"""
     result = await agent_service.process_heartbeat(
         db, req, ip_address=request.client.host if request.client else None
     )
@@ -74,13 +98,7 @@ async def agent_register(
     db: AsyncSession = Depends(get_db),
 ):
     """Agent注册（需 bootstrap token，防止未授权写入数据库）."""
-    expected = settings.AGENT_BOOTSTRAP_TOKEN
-    if not expected:
-        raise HTTPException(
-            status_code=403,
-            detail="Agent 注册未启用：未配置 AGENT_BOOTSTRAP_TOKEN",
-        )
-    if not x_bootstrap_token or not hmac.compare_digest(x_bootstrap_token, expected):
+    if not x_bootstrap_token or not hmac.compare_digest(x_bootstrap_token, settings.AGENT_BOOTSTRAP_TOKEN):
         raise HTTPException(status_code=401, detail="缺少或非法的 bootstrap token")
     result = await agent_service.register_agent(db, req)
     return ApiResponse(data=result)

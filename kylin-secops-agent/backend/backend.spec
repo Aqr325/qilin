@@ -253,6 +253,9 @@ extra_hidden_imports.append('greenlet.context')
 extra_hidden_imports.append('greenlet.hierarchy')
 extra_hidden_imports.append('greenlet.std_context')
 
+# psutil for local-status endpoint
+extra_hidden_imports.append('psutil')
+
 hidden_imports = list(app_hidden_imports) + list(set(extra_hidden_imports))
 
 # Alembic assets to bundle

@@ -25,6 +25,18 @@ export const useAgentsStore = defineStore('agents', () => {
     avgMem: 0,
   })
 
+  // Local machine (backend host) status
+  const localStatus = ref<Record<string, any>>({})
+
+  async function fetchLocalStatus() {
+    try {
+      const res = await api.get<any>('/system/local-status')
+      localStatus.value = res
+    } catch {
+      localStatus.value = {}
+    }
+  }
+
   async function fetchAgents() {
     loading.value = true
     try {
@@ -103,8 +115,9 @@ export const useAgentsStore = defineStore('agents', () => {
   return {
     agents, total, page, pageSize, loading, selectedAgentId,
     healthScores,
+    localStatus,
     stats,
-    fetchAgents, fetchHealthScore,
+    fetchAgents, fetchHealthScore, fetchLocalStatus,
     upgradeAgents, restartAgent, batchRestartAgent,
   }
 })

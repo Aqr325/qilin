@@ -33,5 +33,7 @@
     "health_check_interval_seconds": 5,
     "data_directory": "./data"
   },
-  "seed_password": "KylinSecOps@2026"
+  "seed_password": "KylinSecOps@2026",
+  "agent_bootstrap_token": "kylin-agent-bootstrap-2026",
+  "version": "2.4.9"
 }
