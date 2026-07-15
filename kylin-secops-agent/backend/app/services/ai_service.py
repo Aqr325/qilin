@@ -555,7 +555,7 @@ async def get_model_config(
     from sqlalchemy import select
     result = await db.execute(
         select(AiModelConfig).where(
-            AiModelConfig.id == uuid.UUID(config_id),
+            AiModelConfig.id == uuid.UUID(str(config_id)),
             AiModelConfig.user_id == uuid.UUID(user_id),
         )
     )
@@ -654,7 +654,7 @@ async def update_model_config(
     from sqlalchemy import select
     result = await db.execute(
         select(AiModelConfig).where(
-            AiModelConfig.id == uuid.UUID(config_id),
+            AiModelConfig.id == uuid.UUID(str(config_id)),
             AiModelConfig.user_id == uuid.UUID(user_id),
         )
     )
@@ -714,7 +714,7 @@ async def delete_model_config(db: AsyncSession, config_id: str, user_id: str):
     from sqlalchemy import select
     result = await db.execute(
         select(AiModelConfig).where(
-            AiModelConfig.id == uuid.UUID(config_id),
+            AiModelConfig.id == uuid.UUID(str(config_id)),
             AiModelConfig.user_id == uuid.UUID(user_id),
         )
     )
@@ -732,7 +732,7 @@ async def set_default_model_config(
     from sqlalchemy import select
     result = await db.execute(
         select(AiModelConfig).where(
-            AiModelConfig.id == uuid.UUID(config_id),
+            AiModelConfig.id == uuid.UUID(str(config_id)),
             AiModelConfig.user_id == uuid.UUID(user_id),
         )
     )
