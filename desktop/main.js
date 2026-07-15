@@ -144,7 +144,7 @@ function startBackend() {
           global.__backendRestartCount = restartCount
           if (restartCount <= 3) {
             console.log(`[Desktop] Restarting backend (attempt ${restartCount}/3)...`)
-            setTimeout(() => startBackendInternal(), 1000)
+            setTimeout(() => startBackend(), 1000)
           } else {
             console.error('[Desktop] Backend crashed 3 times, giving up.')
           }

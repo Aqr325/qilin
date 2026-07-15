@@ -62,6 +62,8 @@ data/bootstrap.txt
 # 临时文件
 nul
 *.pid
+# 沙箱叠加FS锁死、用户态无法删除的遗留调试目录（真机/会话结束后可手动清理）
+__smoke_test/
 
 # WorkBuddy
 .workbuddy/
