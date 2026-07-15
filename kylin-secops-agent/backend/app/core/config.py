@@ -11,7 +11,7 @@ from pydantic import field_validator
 class Settings(BaseSettings):
     # ── Application Info ──
     PROJECT_NAME: str = "麒麟OS安全智能运维Agent"
-    VERSION: str = "2.4.6"
+    VERSION: str = "2.4.7"
     API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = False
 
