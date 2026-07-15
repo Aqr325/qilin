@@ -1,6 +1,7 @@
 <template>
   <div class="app-shell">
     <router-view />
+    <ForceChangePasswordModal v-if="needsPasswordChange" />
   </div>
 </template>
 
@@ -9,6 +10,8 @@ import { onMounted, onErrorCaptured } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAlertsStore } from '@/stores/alerts'
 import { showToast } from '@/utils/toast'
+import { needsPasswordChange } from '@/stores/forceChange'
+import ForceChangePasswordModal from '@/components/ForceChangePasswordModal.vue'
 
 const authStore = useAuthStore()
 const alertsStore = useAlertsStore()

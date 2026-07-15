@@ -9,6 +9,7 @@ export interface User {
   is_active: boolean
   is_locked: boolean
   mfa_enabled: boolean
+  must_change_password: boolean
   last_login_at?: string
   created_at: string
 }

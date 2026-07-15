@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { User, LoginResponse } from '@/types'
 import api from '@/services/api'
+import { needsPasswordChange, clearForcePasswordChange } from '@/stores/forceChange'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
@@ -19,6 +20,9 @@ export const useAuthStore = defineStore('auth', () => {
       api.setRefreshToken(res.refresh_token)
       user.value = res.user
       isAuthenticated.value = true
+      if (res.user.must_change_password) {
+        needsPasswordChange.value = true
+      }
       localStorage.setItem('token', res.access_token)
       localStorage.setItem('refreshToken', res.refresh_token)
       return true
@@ -62,6 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     user.value = null
     isAuthenticated.value = false
+    clearForcePasswordChange()
     api.setToken(null)
     api.setRefreshToken(null)
     localStorage.removeItem('token')

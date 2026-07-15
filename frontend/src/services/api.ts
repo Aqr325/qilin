@@ -1,3 +1,5 @@
+import { triggerForcePasswordChange } from '@/stores/forceChange'
+
 // Detect Electron environment and use absolute URL
 const isElectron = navigator.userAgent.includes('Electron')
 const BASE_URL = isElectron ? 'http://127.0.0.1:8001/api/v1' : '/api/v1'
@@ -85,6 +87,13 @@ class ApiService {
         this.refreshToken = null
       }
       const error = await response.json().catch(() => ({ message: '请求失败' }))
+      if (
+        response.status === 403 &&
+        typeof error.detail === 'string' &&
+        error.detail.includes('请先修改初始密码')
+      ) {
+        triggerForcePasswordChange()
+      }
       throw new Error(error.detail || error.message || `HTTP ${response.status}`)
     }
 
