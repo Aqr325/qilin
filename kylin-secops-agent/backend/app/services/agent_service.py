@@ -781,10 +781,10 @@ async def get_agent_health_score(
 ) -> Dict[str, Any]:
     """获取Agent健康评分详情（实时计算）。"""
     agent_repo = AgentRepository(db)
-    agent = await agent_repo.get_by_agent_id(agent_id)
+    agent = await agent_repo.get(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-    hb = await AgentHeartbeatRepository(db).get_latest(agent_id)
+    hb = await AgentHeartbeatRepository(db).get_latest(agent.agent_id)
     return compute_health_score(agent, hb)
 
 
