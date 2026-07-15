@@ -32,7 +32,7 @@ class AuditLogRepository(BaseRepository[AuditLog]):
         query = select(AuditLog)
 
         if user_id:
-            query = query.where(AuditLog.user_id == uuid.UUID(user_id))
+            query = query.where(AuditLog.user_id == uuid.UUID(str(user_id)))
         if action:
             query = query.where(AuditLog.action == action)
         if resource_type:
@@ -133,7 +133,7 @@ class LoginLogRepository(BaseRepository[LoginLog]):
         query = select(LoginLog)
 
         if user_id:
-            query = query.where(LoginLog.user_id == uuid.UUID(user_id))
+            query = query.where(LoginLog.user_id == uuid.UUID(str(user_id)))
         if username:
             query = query.where(LoginLog.username.ilike(f"%{username}%"))
         if status:

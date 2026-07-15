@@ -50,7 +50,7 @@ class AlertRepository(BaseRepository[Alert]):
         if mitre_technique:
             query = query.where(Alert.mitre_technique_id == mitre_technique)
         if assignee_id:
-            query = query.where(Alert.assignee_id == uuid.UUID(assignee_id))
+            query = query.where(Alert.assignee_id == uuid.UUID(str(assignee_id)))
         if start_time:
             query = query.where(Alert.created_at >= start_time)
         if end_time:

@@ -28,7 +28,7 @@ class _UUIDType(types.TypeDecorator):
             return value
         if isinstance(value, uuid.UUID):
             return value
-        return uuid.UUID(value)
+        return uuid.UUID(str(value))
 
 
 UUID = _UUIDType

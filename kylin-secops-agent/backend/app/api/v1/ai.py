@@ -39,7 +39,7 @@ async def ai_query(
     """自然语言运维查询."""
     if req.context_alert_id:
         try:
-            uuid.UUID(req.context_alert_id)
+            uuid.UUID(str(req.context_alert_id))
         except ValueError:
             raise HTTPException(status_code=400, detail="非法的 context_alert_id")
     result = await ai_service.query(db, req, user=current_user)

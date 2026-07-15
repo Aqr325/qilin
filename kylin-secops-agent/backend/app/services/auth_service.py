@@ -178,7 +178,7 @@ async def refresh_token(db: AsyncSession, refresh_token_str: str) -> dict:
 
     # Verify user still exists and is active (eager-load roles for token claims)
     user_repo = UserRepository(db)
-    user = await user_repo.get_with_roles(uuid.UUID(user_id))
+    user = await user_repo.get_with_roles(uuid.UUID(str(user_id)))
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -215,7 +215,7 @@ async def change_password(
 ) -> None:
     """Change user password."""
     user_repo = UserRepository(db)
-    user = await user_repo.get(uuid.UUID(user_id))
+    user = await user_repo.get(uuid.UUID(str(user_id)))
 
     if not user:
         raise HTTPException(
@@ -244,7 +244,7 @@ async def change_password(
 async def get_user_permissions(db: AsyncSession, user_id: str) -> List[dict]:
     """Get permissions for a user."""
     user_repo = UserRepository(db)
-    user = await user_repo.get_with_roles(uuid.UUID(user_id))
+    user = await user_repo.get_with_roles(uuid.UUID(str(user_id)))
     if not user:
         return []
 
@@ -351,7 +351,7 @@ async def _record_login_log(
 ):
     """Record login attempt to log."""
     log = LoginLog(
-        user_id=uuid.UUID(user_id) if user_id else None,
+        user_id=uuid.UUID(str(user_id)) if user_id else None,
         username=username,
         status=status_str,
         failure_reason=failure_reason,

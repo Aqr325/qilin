@@ -144,7 +144,7 @@ async def get_alert_detail(db: AsyncSession, alert_id: str) -> AlertDetail:
     """Get alert detail."""
     repo = AlertRepository(db)
     try:
-        alert = await repo.get(uuid.UUID(alert_id))
+        alert = await repo.get(uuid.UUID(str(alert_id)))
     except ValueError:
         alert = await repo.get_by_alert_seq(int(alert_id))
 
@@ -199,7 +199,7 @@ async def update_status(
 ) -> AlertDetail:
     """Update alert status."""
     repo = AlertRepository(db)
-    alert = await repo.get(uuid.UUID(alert_id))
+    alert = await repo.get(uuid.UUID(str(alert_id)))
     if not alert:
         raise HTTPException(status_code=404, detail="告警不存在")
 
@@ -217,7 +217,7 @@ async def update_status(
         alert.resolved_at = datetime.now(timezone.utc)
         if operator:
             from app.models.user import User
-            alert.resolved_by = uuid.UUID(operator["id"])
+            alert.resolved_by = uuid.UUID(str(operator["id"]))
 
     await db.flush()
 
@@ -226,7 +226,7 @@ async def update_status(
         alert_id=alert.id,
         from_status=old_status,
         to_status=new_status,
-        operator_id=uuid.UUID(operator["id"]) if operator else None,
+        operator_id=uuid.UUID(str(operator["id"])) if operator else None,
         operator_name=operator.get("username") if operator else None,
         operation=f"status_change:{old_status}->{new_status}",
         comment=comment,
@@ -294,11 +294,11 @@ async def assign_alert(
 ) -> AlertDetail:
     """Assign alert to user."""
     repo = AlertRepository(db)
-    alert = await repo.get(uuid.UUID(alert_id))
+    alert = await repo.get(uuid.UUID(str(alert_id)))
     if not alert:
         raise HTTPException(status_code=404, detail="告警不存在")
 
-    alert.assignee_id = uuid.UUID(assignee_id)
+    alert.assignee_id = uuid.UUID(str(assignee_id))
     alert.assigned_at = datetime.now(timezone.utc)
     await db.flush()
 
@@ -311,7 +311,7 @@ async def get_status_history(
 ) -> List[AlertStatusChange]:
     """Get alert status change history."""
     history_repo = AlertStatusHistoryRepository(db)
-    records = await history_repo.list_by_alert(uuid.UUID(alert_id))
+    records = await history_repo.list_by_alert(uuid.UUID(str(alert_id)))
     return [
         AlertStatusChange(
             id=r.id,
@@ -333,7 +333,7 @@ async def get_related_alerts(
 ) -> List[AlertSummary]:
     """Get related alerts by correlation key."""
     repo = AlertRepository(db)
-    related = await repo.get_related(uuid.UUID(alert_id))
+    related = await repo.get_related(uuid.UUID(str(alert_id)))
     return [
         AlertSummary(
             id=str(a.id),
@@ -363,7 +363,7 @@ async def suppress_alert(
 ) -> SuppressRule:
     """Suppress an alert."""
     repo = AlertRepository(db)
-    alert = await repo.get(uuid.UUID(alert_id))
+    alert = await repo.get(uuid.UUID(str(alert_id)))
     if not alert:
         raise HTTPException(status_code=404, detail="告警不存在")
 

@@ -99,7 +99,7 @@ async def get_current_user(
     result = await db.execute(
         select(User)
         .options(selectinload(User.roles).selectinload(Role.permissions))
-        .where(User.id == uuid.UUID(user_id), User.is_deleted == False)
+        .where(User.id == uuid.UUID(str(user_id)), User.is_deleted == False)
     )
     user = result.scalar_one_or_none()
 

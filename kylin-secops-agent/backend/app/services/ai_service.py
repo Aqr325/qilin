@@ -71,8 +71,8 @@ async def query(
 
     # Save conversation
     conv = AiConversation(
-        id=uuid.UUID(conv_id),
-        user_id=uuid.UUID(user["id"]),
+        id=uuid.UUID(str(conv_id)),
+        user_id=uuid.UUID(str(user["id"])),
         title=req.question[:100],
         messages=[
             {"role": "user", "content": req.question, "id": msg_id},
@@ -84,7 +84,7 @@ async def query(
     )
     if req.context_alert_id:
         try:
-            conv.related_alert_id = uuid.UUID(req.context_alert_id)
+            conv.related_alert_id = uuid.UUID(str(req.context_alert_id))
         except (ValueError, AttributeError):
             raise HTTPException(
                 status_code=400, detail="非法的 context_alert_id"
@@ -112,7 +112,7 @@ async def _call_model_api(
     model_name = "default"
     try:
         stmt = select(AiModelConfig).where(
-            AiModelConfig.user_id == uuid.UUID(user_id),
+            AiModelConfig.user_id == uuid.UUID(str(user_id)),
             AiModelConfig.is_active == 1,
             AiModelConfig.is_default == 1,
         )
@@ -233,8 +233,8 @@ async def test_model_config(
     """
     if req.config_id:
         stmt = select(AiModelConfig).where(
-            AiModelConfig.id == uuid.UUID(req.config_id),
-            AiModelConfig.user_id == uuid.UUID(user_id),
+            AiModelConfig.id == uuid.UUID(str(req.config_id)),
+            AiModelConfig.user_id == uuid.UUID(str(user_id)),
         )
         cfg = (await db.execute(stmt)).scalar_one_or_none()
         if not cfg:
@@ -420,7 +420,7 @@ async def list_conversations(
     from sqlalchemy import desc, select, func
 
     repo = BaseRepository(AiConversation, db)
-    query = select(AiConversation).where(AiConversation.user_id == uuid.UUID(user_id))
+    query = select(AiConversation).where(AiConversation.user_id == uuid.UUID(str(user_id)))
 
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0
@@ -456,7 +456,7 @@ async def get_conversation(
 
     repo = BaseRepository(AiConversation, db)
     result = await db.execute(
-        select(AiConversation).where(AiConversation.id == uuid.UUID(conv_id))
+        select(AiConversation).where(AiConversation.id == uuid.UUID(str(conv_id)))
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -484,7 +484,7 @@ async def delete_conversation(db: AsyncSession, conv_id: str, operator: dict):
 
     repo = BaseRepository(AiConversation, db)
     result = await db.execute(
-        select(AiConversation).where(AiConversation.id == uuid.UUID(conv_id))
+        select(AiConversation).where(AiConversation.id == uuid.UUID(str(conv_id)))
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -504,8 +504,8 @@ async def save_feedback(
 
     result = await db.execute(
         select(AiConversation).where(
-            AiConversation.id == uuid.UUID(req.conversation_id),
-            AiConversation.user_id == uuid.UUID(user["id"]),
+            AiConversation.id == uuid.UUID(str(req.conversation_id)),
+            AiConversation.user_id == uuid.UUID(str(user["id"])),
         )
     )
     conv = result.scalar_one_or_none()
@@ -524,7 +524,7 @@ async def list_model_configs(db: AsyncSession, user_id: str) -> List[AiModelConf
     from sqlalchemy import select, desc
     result = await db.execute(
         select(AiModelConfig)
-        .where(AiModelConfig.user_id == uuid.UUID(user_id))
+        .where(AiModelConfig.user_id == uuid.UUID(str(user_id)))
         .order_by(desc(AiModelConfig.is_default), desc(AiModelConfig.created_at))
     )
     configs = result.scalars().all()
@@ -556,7 +556,7 @@ async def get_model_config(
     result = await db.execute(
         select(AiModelConfig).where(
             AiModelConfig.id == uuid.UUID(str(config_id)),
-            AiModelConfig.user_id == uuid.UUID(user_id),
+            AiModelConfig.user_id == uuid.UUID(str(user_id)),
         )
     )
     config = result.scalar_one_or_none()
@@ -588,7 +588,7 @@ async def create_model_config(
     all), the new config is marked as default so chat can use it immediately.
     This also removes the dependency on the undefined `_unset_other_defaults`.
     """
-    uid = uuid.UUID(user_id)
+    uid = uuid.UUID(str(user_id))
 
     existing = (
         await db.execute(select(AiModelConfig).where(AiModelConfig.user_id == uid))
@@ -655,7 +655,7 @@ async def update_model_config(
     result = await db.execute(
         select(AiModelConfig).where(
             AiModelConfig.id == uuid.UUID(str(config_id)),
-            AiModelConfig.user_id == uuid.UUID(user_id),
+            AiModelConfig.user_id == uuid.UUID(str(user_id)),
         )
     )
     config = result.scalar_one_or_none()
@@ -684,7 +684,7 @@ async def update_model_config(
         # Unset default from other configs
         await db.execute(
             AiModelConfig.__table__.update()
-            .where(AiModelConfig.user_id == uuid.UUID(user_id))
+            .where(AiModelConfig.user_id == uuid.UUID(str(user_id)))
             .values(is_default=0)
         )
         config.is_default = 1
@@ -715,7 +715,7 @@ async def delete_model_config(db: AsyncSession, config_id: str, user_id: str):
     result = await db.execute(
         select(AiModelConfig).where(
             AiModelConfig.id == uuid.UUID(str(config_id)),
-            AiModelConfig.user_id == uuid.UUID(user_id),
+            AiModelConfig.user_id == uuid.UUID(str(user_id)),
         )
     )
     config = result.scalar_one_or_none()
@@ -733,7 +733,7 @@ async def set_default_model_config(
     result = await db.execute(
         select(AiModelConfig).where(
             AiModelConfig.id == uuid.UUID(str(config_id)),
-            AiModelConfig.user_id == uuid.UUID(user_id),
+            AiModelConfig.user_id == uuid.UUID(str(user_id)),
         )
     )
     config = result.scalar_one_or_none()
@@ -743,7 +743,7 @@ async def set_default_model_config(
     # Unset default from all other configs
     await db.execute(
         AiModelConfig.__table__.update()
-        .where(AiModelConfig.user_id == uuid.UUID(user_id))
+        .where(AiModelConfig.user_id == uuid.UUID(str(user_id)))
         .values(is_default=0)
     )
     config.is_default = 1

@@ -70,13 +70,13 @@ async def create_user(
             role_ids_to_assign = [str(role_obj.id)]
 
     for role_id in role_ids_to_assign:
-        role = await role_repo.get(uuid.UUID(role_id))
+        role = await role_repo.get(uuid.UUID(str(role_id)))
         if role:
             await db.execute(
                 user_roles.insert().values(
                     user_id=user.id,
                     role_id=role.id,
-                    granted_by=uuid.UUID(operator["id"]),
+                    granted_by=uuid.UUID(str(operator["id"])),
                 )
             )
 
@@ -131,7 +131,7 @@ async def list_users(
 async def get_user_detail(db: AsyncSession, user_id: str) -> UserDetail:
     """Get user detail."""
     user_repo = UserRepository(db)
-    user = await user_repo.get_with_roles(uuid.UUID(user_id))
+    user = await user_repo.get_with_roles(uuid.UUID(str(user_id)))
     if not user or user.is_deleted:
         raise HTTPException(status_code=404, detail="用户不存在")
     return await _user_to_detail(user)
@@ -145,7 +145,7 @@ async def update_user(
 ) -> UserDetail:
     """Update user."""
     user_repo = UserRepository(db)
-    user = await user_repo.get(uuid.UUID(user_id))
+    user = await user_repo.get(uuid.UUID(str(user_id)))
     if not user or user.is_deleted:
         raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -174,13 +174,13 @@ async def update_user(
         # Add new roles
         role_repo = RoleRepository(db)
         for rid in role_ids_to_assign:
-            role = await role_repo.get(uuid.UUID(rid))
+            role = await role_repo.get(uuid.UUID(str(rid)))
             if role:
                 await db.execute(
                     user_roles.insert().values(
                         user_id=user.id,
                         role_id=role.id,
-                        granted_by=uuid.UUID(operator["id"]),
+                        granted_by=uuid.UUID(str(operator["id"])),
                     )
                 )
 
@@ -192,7 +192,7 @@ async def update_user(
 async def delete_user(db: AsyncSession, user_id: str, operator: dict):
     """Delete user (soft delete)."""
     user_repo = UserRepository(db)
-    user = await user_repo.get(uuid.UUID(user_id))
+    user = await user_repo.get(uuid.UUID(str(user_id)))
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
     user.is_deleted = True
@@ -208,7 +208,7 @@ async def toggle_user_status(
 ) -> UserDetail:
     """Enable/disable user."""
     user_repo = UserRepository(db)
-    user = await user_repo.get(uuid.UUID(user_id))
+    user = await user_repo.get(uuid.UUID(str(user_id)))
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
     user.is_active = is_active
@@ -241,7 +241,7 @@ async def list_roles(db: AsyncSession) -> List[RoleDetail]:
 async def get_role_detail(db: AsyncSession, role_id: str) -> RoleDetail:
     """角色详情."""
     role_repo = RoleRepository(db)
-    role = await role_repo.get(uuid.UUID(role_id))
+    role = await role_repo.get(uuid.UUID(str(role_id)))
     if not role or role.is_deleted:
         raise HTTPException(status_code=404, detail="角色不存在")
     return RoleDetail(
@@ -280,7 +280,7 @@ async def create_role(
     # Assign permissions
     perm_repo = PermissionRepository(db)
     for perm_id in req.permission_ids:
-        perm = await perm_repo.get(uuid.UUID(perm_id))
+        perm = await perm_repo.get(uuid.UUID(str(perm_id)))
         if perm:
             await db.execute(
                 role_permissions.insert().values(
@@ -314,7 +314,7 @@ async def update_role(
 ) -> RoleDetail:
     """Update role permissions."""
     role_repo = RoleRepository(db)
-    role = await role_repo.get(uuid.UUID(role_id))
+    role = await role_repo.get(uuid.UUID(str(role_id)))
     if not role:
         raise HTTPException(status_code=404, detail="角色不存在")
 
@@ -334,7 +334,7 @@ async def update_role(
         # Add new permissions
         perm_repo = PermissionRepository(db)
         for perm_id in req.permission_ids:
-            perm = await perm_repo.get(uuid.UUID(perm_id))
+            perm = await perm_repo.get(uuid.UUID(str(perm_id)))
             if perm:
                 await db.execute(
                     role_permissions.insert().values(
@@ -363,7 +363,7 @@ async def update_role(
 async def delete_role(db: AsyncSession, role_id: str, operator: dict):
     """Delete role."""
     role_repo = RoleRepository(db)
-    role = await role_repo.get(uuid.UUID(role_id))
+    role = await role_repo.get(uuid.UUID(str(role_id)))
     if not role:
         raise HTTPException(status_code=404, detail="角色不存在")
     if role.is_system:

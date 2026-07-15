@@ -68,8 +68,8 @@ async def create_policy(
         priority=req.priority,
         effective_start=req.effective_start,
         effective_end=req.effective_end,
-        created_by=uuid.UUID(operator["id"]),
-        updated_by=uuid.UUID(operator["id"]),
+        created_by=uuid.UUID(str(operator["id"])),
+        updated_by=uuid.UUID(str(operator["id"])),
     )
     db.add(policy)
     await db.flush()
@@ -80,7 +80,7 @@ async def create_policy(
         version=1,
         rules=req.rules,
         changelog="初始版本",
-        created_by=uuid.UUID(operator["id"]),
+        created_by=uuid.UUID(str(operator["id"])),
     )
     db.add(version)
     await db.flush()
@@ -135,7 +135,7 @@ async def get_policy_detail(
     """Get policy detail."""
     repo = PolicyRepository(db)
     try:
-        pid = uuid.UUID(policy_id)
+        pid = uuid.UUID(str(policy_id))
     except (ValueError, AttributeError):
         raise HTTPException(status_code=404, detail="策略不存在")
     policy = await repo.get(pid)
@@ -153,7 +153,7 @@ async def update_policy(
     """Update policy (creates new version)."""
     repo = PolicyRepository(db)
     try:
-        pid = uuid.UUID(policy_id)
+        pid = uuid.UUID(str(policy_id))
     except (ValueError, AttributeError):
         raise HTTPException(status_code=404, detail="策略不存在")
     policy = await repo.get(pid)
@@ -163,7 +163,7 @@ async def update_policy(
     # Increment version and save current rules as version history
     old_rules = policy.rules
     policy.version += 1
-    policy.updated_by = uuid.UUID(operator["id"])
+    policy.updated_by = uuid.UUID(str(operator["id"]))
 
     update_data = req.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -178,7 +178,7 @@ async def update_policy(
         version=policy.version,
         rules=policy.rules,
         changelog=req.changelog or "更新策略",
-        created_by=uuid.UUID(operator["id"]),
+        created_by=uuid.UUID(str(operator["id"])),
     )
     db.add(version)
     await db.flush()
@@ -190,7 +190,7 @@ async def update_policy(
 async def delete_policy(db: AsyncSession, policy_id: str, operator: dict):
     """Soft delete policy."""
     try:
-        pid = uuid.UUID(policy_id)
+        pid = uuid.UUID(str(policy_id))
     except (ValueError, AttributeError):
         raise HTTPException(status_code=404, detail="策略不存在")
     repo = PolicyRepository(db)
@@ -210,7 +210,7 @@ async def deploy_policy(
     并提升对应Agent的 config_version，触发其下次心跳拉取最新策略。
     """
     repo = PolicyRepository(db)
-    policy = await repo.get(uuid.UUID(policy_id))
+    policy = await repo.get(uuid.UUID(str(policy_id)))
     if not policy:
         raise HTTPException(status_code=404, detail="策略不存在")
 
@@ -301,12 +301,12 @@ async def toggle_policy(
 ) -> PolicyDetail:
     """Toggle policy enabled/disabled."""
     repo = PolicyRepository(db)
-    policy = await repo.get(uuid.UUID(policy_id))
+    policy = await repo.get(uuid.UUID(str(policy_id)))
     if not policy:
         raise HTTPException(status_code=404, detail="策略不存在")
 
     policy.status = "enabled" if enabled else "disabled"
-    policy.updated_by = uuid.UUID(operator["id"])
+    policy.updated_by = uuid.UUID(str(operator["id"]))
     await db.flush()
     await db.refresh(policy)
 
@@ -323,17 +323,17 @@ async def rollback_policy(
     repo = PolicyRepository(db)
     version_repo = PolicyVersionRepository(db)
 
-    policy = await repo.get(uuid.UUID(policy_id))
+    policy = await repo.get(uuid.UUID(str(policy_id)))
     if not policy:
         raise HTTPException(status_code=404, detail="策略不存在")
 
-    old_version = await version_repo.get_version(uuid.UUID(policy_id), version_number)
+    old_version = await version_repo.get_version(uuid.UUID(str(policy_id)), version_number)
     if not old_version:
         raise HTTPException(status_code=404, detail=f"版本 {version_number} 不存在")
 
     policy.version += 1
     policy.rules = old_version.rules
-    policy.updated_by = uuid.UUID(operator["id"])
+    policy.updated_by = uuid.UUID(str(operator["id"]))
     await db.flush()
 
     # Create rollback version
@@ -342,7 +342,7 @@ async def rollback_policy(
         version=policy.version,
         rules=policy.rules,
         changelog=f"回滚到版本 {version_number}",
-        created_by=uuid.UUID(operator["id"]),
+        created_by=uuid.UUID(str(operator["id"])),
     )
     db.add(new_version)
     await db.flush()
@@ -357,7 +357,7 @@ async def get_versions(
 ) -> List[PolicyVersionSchema]:
     """Get policy version history."""
     version_repo = PolicyVersionRepository(db)
-    versions = await version_repo.list_by_policy(uuid.UUID(policy_id))
+    versions = await version_repo.list_by_policy(uuid.UUID(str(policy_id)))
     return [
         PolicyVersionSchema(
             id=str(v.id),
@@ -377,7 +377,7 @@ async def get_deploy_status(
 ) -> DeployStatusMap:
     """Get policy deploy status."""
     target_repo = PolicyTargetRepository(db)
-    status = await target_repo.get_deploy_status(uuid.UUID(policy_id))
+    status = await target_repo.get_deploy_status(uuid.UUID(str(policy_id)))
     return DeployStatusMap(**status)
 
 
