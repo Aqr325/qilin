@@ -56,6 +56,20 @@ export interface Agent {
   tags: string[]
   uptime?: number
   registered_at?: string
+  health_score?: number
+  last_status_change?: string
+}
+
+export interface AgentHealthScore {
+  health_score: number
+  factors: {
+    heartbeat_freshness: number
+    cpu: number
+    memory: number
+    disk: number
+    status: number
+  }
+  last_updated: string
 }
 
 export type AgentStatus = 'online' | 'offline' | 'error' | 'upgrading' | 'pending'
@@ -201,6 +215,8 @@ export interface PaginatedResponse<T> {
   size: number
   total_pages: number
 }
+
+export type AgentHealthColor = 'green' | 'yellow' | 'red'
 
 export interface ApiResponse<T> {
   code: number

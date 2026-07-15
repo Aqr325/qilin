@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Agent, PaginatedResponse } from '@/types'
+import type { Agent, PaginatedResponse, AgentHealthScore } from '@/types'
 import api from '@/services/api'
+import { agentsApi } from '@/services/api/agents'
 
 export const useAgentsStore = defineStore('agents', () => {
   const agents = ref<Agent[]>([])
@@ -10,6 +11,9 @@ export const useAgentsStore = defineStore('agents', () => {
   const pageSize = ref(20)
   const loading = ref(false)
   const selectedAgentId = ref<string | null>(null)
+
+  // Health score cache keyed by agent_id
+  const healthScores = ref<Record<string, AgentHealthScore>>({})
 
   const stats = ref({
     online: 0,
@@ -33,6 +37,8 @@ export const useAgentsStore = defineStore('agents', () => {
         memory_usage: a.memory_usage ?? 0,
         disk_usage: a.disk_usage ?? 0,
         processes_total: a.processes_total ?? 0,
+        health_score: a.health_score ?? null,
+        last_status_change: a.last_status_change ?? null,
       }))
       total.value = res.total
 
@@ -58,6 +64,15 @@ export const useAgentsStore = defineStore('agents', () => {
     }
   }
 
+  async function fetchHealthScore(agentId: string) {
+    try {
+      const res = await agentsApi.getHealthScore(agentId)
+      healthScores.value[agentId] = res
+    } catch (e) {
+      console.warn(`Failed to fetch health score for ${agentId}:`, e)
+    }
+  }
+
   async function upgradeAgents(agentIds: string[], version: string, packageUrl = '') {
     try {
       await api.post('/agents/upgrade', { agent_ids: agentIds, version, package_url: packageUrl })
@@ -76,8 +91,20 @@ export const useAgentsStore = defineStore('agents', () => {
     }
   }
 
+  async function batchRestartAgent(agentIds: string[]) {
+    try {
+      const res = await agentsApi.batchRestart({ agent_ids: agentIds })
+      return res.data?.task_ids ?? []
+    } catch {
+      return []
+    }
+  }
+
   return {
-    agents, total, page, pageSize, loading, selectedAgentId, stats,
-    fetchAgents, upgradeAgents, restartAgent,
+    agents, total, page, pageSize, loading, selectedAgentId,
+    healthScores,
+    stats,
+    fetchAgents, fetchHealthScore,
+    upgradeAgents, restartAgent, batchRestartAgent,
   }
 })

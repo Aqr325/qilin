@@ -47,6 +47,140 @@ def _check_auto_register_limit() -> bool:
     return True
 
 
+# ── Health Score ──
+
+def _score_heartbeat_freshness(agent: Agent) -> int:
+    """心跳新鲜度评分（0-100）。"""
+    if not agent.last_heartbeat:
+        return 0
+    age_seconds = (datetime.now(timezone.utc) - agent.last_heartbeat).total_seconds()
+    if age_seconds < 30:
+        return 100
+    if age_seconds < 60:
+        return 70
+    if age_seconds < 120:
+        return 40
+    if age_seconds < 300:
+        return 10
+    return 0
+
+
+def _score_cpu(cpu_usage: Optional[float]) -> int:
+    """CPU 使用率评分（0-100）。"""
+    if cpu_usage is None:
+        return 0
+    if cpu_usage < 30:
+        return 100
+    if cpu_usage < 60:
+        return 80
+    if cpu_usage < 80:
+        return 50
+    if cpu_usage < 95:
+        return 20
+    return 0
+
+
+def _score_memory(memory_percent: Optional[float]) -> int:
+    """内存使用率评分（0-100）。"""
+    if memory_percent is None:
+        return 0
+    if memory_percent < 50:
+        return 100
+    if memory_percent < 75:
+        return 80
+    if memory_percent < 90:
+        return 50
+    return 0
+
+
+def _score_disk(disk_json: Optional[Dict[str, Any]]) -> int:
+    """磁盘使用率评分（0-100）。取所有磁盘分区的最大使用率来计算。"""
+    if not disk_json:
+        return 0
+    max_usage = 0.0
+    if isinstance(disk_json, list):
+        for d in disk_json:
+            usage = d.get("percent") or d.get("usage_percent")
+            if usage is not None:
+                max_usage = max(max_usage, float(usage))
+    elif isinstance(disk_json, dict):
+        usage = disk_json.get("percent") or disk_json.get("usage_percent")
+        if usage is not None:
+            max_usage = float(usage)
+    if max_usage < 70:
+        return 100
+    if max_usage < 85:
+        return 70
+    if max_usage < 95:
+        return 40
+    return 0
+
+
+def _score_status(status: str) -> int:
+    """状态评分（0-100）。"""
+    return {"online": 100, "upgrading": 50, "offline": 20, "error": 0}.get(status, 0)
+
+
+def compute_health_score(agent: Agent, heartbeat: Optional[AgentHeartbeat] = None) -> Dict[str, Any]:
+    """
+    计算 Agent 综合健康评分（0-100）。
+    评分维度（加权）：
+      - 心跳新鲜度（权重 30%）
+      - CPU 使用率（权重 25%）
+      - 内存使用率（权重 20%）
+      - 磁盘使用率（权重 15%）
+      - 状态权重（权重 10%）
+
+    Returns:
+        {
+            "health_score": int,
+            "factors": { "heartbeat_freshness": {...}, "cpu_usage": {...}, ... },
+            "last_updated": datetime,
+        }
+    """
+    hb_freshness_score = _score_heartbeat_freshness(agent)
+    hb_freshness_value = (
+        round((datetime.now(timezone.utc) - agent.last_heartbeat).total_seconds(), 1)
+        if agent.last_heartbeat else None
+    )
+
+    cpu_val = heartbeat.cpu_usage if heartbeat else None
+    mem_val = heartbeat.memory_percent if heartbeat else None
+    disk_val = heartbeat.disk_json if heartbeat else None
+
+    cpu_score = _score_cpu(cpu_val)
+    mem_score = _score_memory(mem_val)
+    disk_score = _score_disk(disk_val)
+    status_score = _score_status(agent.status)
+
+    weights = {
+        "heartbeat_freshness": 0.30,
+        "cpu_usage": 0.25,
+        "memory_usage": 0.20,
+        "disk_usage": 0.15,
+        "status": 0.10,
+    }
+    total = (
+        hb_freshness_score * weights["heartbeat_freshness"]
+        + cpu_score * weights["cpu_usage"]
+        + mem_score * weights["memory_usage"]
+        + disk_score * weights["disk_usage"]
+        + status_score * weights["status"]
+    )
+
+    return {
+        "health_score": round(total),
+        "factors": {
+            "heartbeat_freshness": {"score": hb_freshness_score, "weight": weights["heartbeat_freshness"], "value": hb_freshness_value},
+            "cpu_usage": {"score": cpu_score, "weight": weights["cpu_usage"], "value": cpu_val},
+            "memory_usage": {"score": mem_score, "weight": weights["memory_usage"], "value": mem_val},
+            "disk_usage": {"score": disk_score, "weight": weights["disk_usage"], "value": disk_val},
+            "status": {"score": status_score, "weight": weights["status"], "value": agent.status},
+        },
+        "last_updated": datetime.now(timezone.utc),
+    }
+
+
 async def process_heartbeat(
     db: AsyncSession,
     req: HeartbeatRequest,
@@ -121,6 +255,22 @@ async def process_heartbeat(
     )
     db.add(hb)
     await db.flush()
+
+    # ── 计算并持久化健康评分 ──
+    health = compute_health_score(agent, hb)
+    old_score = agent.health_score
+    agent.health_score = health["health_score"]
+    await db.commit()
+    await db.refresh(agent)
+
+    # 健康评分变化超过 10 分时广播
+    if old_score != agent.health_score and abs(agent.health_score - old_score) >= 10:
+        await ws_manager.broadcast("agent.health", {
+            "agent_id": agent_id,
+            "health_score": agent.health_score,
+            "old_score": old_score,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
 
     return HeartbeatResponse(
         server_time=datetime.now(timezone.utc).isoformat(),
@@ -313,6 +463,7 @@ async def list_agents(
             last_heartbeat=a.last_heartbeat,
             tags=a.tags,
             registered_at=a.registered_at,
+            health_score=a.health_score,
         )
         for a in agents
     ]
@@ -366,6 +517,11 @@ async def get_agent_detail(
     agent = await agent_repo.get_by_agent_id(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+
+    # 实时计算健康评分（如果心跳数据有变动）
+    hb = await AgentHeartbeatRepository(db).get_latest(agent.agent_id)
+    health = compute_health_score(agent, hb)
+
     return AgentDetail(
         id=str(agent.id),
         agent_id=agent.agent_id,
@@ -387,6 +543,8 @@ async def get_agent_detail(
         is_deleted=agent.is_deleted,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
+        health_score=health["health_score"],
+        last_status_change=agent.last_status_change,
     )
 
 
@@ -573,6 +731,61 @@ async def restart_agent(
     db.add(task)
     await db.flush()
     return {"task_id": task.id, "agent_id": agent_id}
+
+
+async def batch_restart_agents(
+    db: AsyncSession,
+    agent_ids: List[str],
+    operator: str,
+) -> dict:
+    """批量重启Agent：为每个 agent_id 创建 restart 任务。"""
+    agent_repo = AgentRepository(db)
+    task_ids: List[str] = []
+    errors: List[Dict[str, Any]] = []
+
+    for aid in agent_ids:
+        try:
+            agent = await agent_repo.get_by_agent_id(aid)
+            if not agent:
+                errors.append({"agent_id": aid, "error": "Agent not found"})
+                continue
+            task = await restart_agent(db, aid, operator)
+            task_ids.append(task["task_id"])
+
+            db.add(AuditLog(
+                id=uuid.uuid4(),
+                user_id=None,
+                username=str(operator) if operator else "system",
+                action="agent_restart",
+                resource_type="agent",
+                resource_id=aid,
+                detail=f"批量重启Agent {aid}",
+                ip_address="",
+                status="success",
+            ))
+        except Exception as e:
+            errors.append({"agent_id": aid, "error": str(e)})
+
+    await db.flush()
+    return {
+        "task_ids": task_ids,
+        "total_requested": len(agent_ids),
+        "succeeded": len(task_ids),
+        "errors": errors,
+    }
+
+
+async def get_agent_health_score(
+    db: AsyncSession,
+    agent_id: str,
+) -> Dict[str, Any]:
+    """获取Agent健康评分详情（实时计算）。"""
+    agent_repo = AgentRepository(db)
+    agent = await agent_repo.get_by_agent_id(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    hb = await AgentHeartbeatRepository(db).get_latest(agent_id)
+    return compute_health_score(agent, hb)
 
 
 async def get_agent_tasks(

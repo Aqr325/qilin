@@ -12,8 +12,10 @@ from app.core.permissions import Permission, require_permission
 from app.models.agent import Agent
 from app.schemas.agent import (
     AgentBatchEventsRequest,
+    AgentBatchRestartRequest,
     AgentDetail,
     AgentGlobalStats,
+    AgentHealthScore,
     AgentMetrics,
     AgentRegisterRequest,
     AgentSummary,
@@ -237,6 +239,30 @@ async def get_upgrade_history(
 ):
     """Agent升级历史."""
     result = await agent_service.get_upgrade_history(db, agent_id)
+    return ApiResponse(data=result)
+
+
+@mgmt_router.get("/{agent_id}/health-score", response_model=ApiResponse[AgentHealthScore])
+async def get_agent_health_score(
+    agent_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Agent健康评分详情（实时计算）。"""
+    result = await agent_service.get_agent_health_score(db, agent_id)
+    return ApiResponse(data=result)
+
+
+@mgmt_router.post("/batch-restart", response_model=ApiResponse)
+async def batch_restart_agents(
+    req: AgentBatchRestartRequest,
+    current_user: dict = Depends(require_permission(Permission.AGENT_RESTART)),
+    db: AsyncSession = Depends(get_db),
+):
+    """批量重启Agent（复用 restart_agent 逻辑）。"""
+    result = await agent_service.batch_restart_agents(
+        db, req.agent_ids, operator=current_user["username"]
+    )
     return ApiResponse(data=result)
 
 

@@ -1,4 +1,4 @@
-import type { Agent, PaginatedResponse } from '@/types'
+import type { Agent, PaginatedResponse, AgentHealthScore, ApiResponse } from '@/types'
 import api from '@/services/api'
 
 export const agentsApi = {
@@ -25,5 +25,13 @@ export const agentsApi = {
 
   restart(id: string) {
     return api.post<{ task_id: string }>(`/agents/${id}/restart`)
+  },
+
+  getHealthScore(agentId: string) {
+    return api.get<AgentHealthScore>(`/agents/${agentId}/health-score`)
+  },
+
+  batchRestart(request: { agent_ids: string[] }) {
+    return api.post<ApiResponse<{ task_ids: string[] }>>('/agents/batch-restart', request)
   },
 }

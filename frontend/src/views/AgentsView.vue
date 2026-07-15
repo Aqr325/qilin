@@ -6,6 +6,12 @@
         <p>监控和管理所有已部署 Agent 的运行状态</p>
       </div>
       <div class="page-header-right">
+        <button v-if="selectedAgents.length > 0" class="btn-danger" @click="batchRestartSelected">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;">
+            <path d="M3 7a4 4 0 1 0 1.2-2.8L3 5"/><path d="M3 2v3h3"/>
+          </svg>
+          批量重启 ({{ selectedAgents.length }})
+        </button>
         <button class="btn-primary" @click="showUpgradeDialog = true">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;">
             <path d="M7 1v8M3 5l4 4 4-4"/>
@@ -55,9 +61,13 @@
         <table class="alert-table">
           <thead>
             <tr>
+              <th style="width:36px;padding-left:8px;">
+                <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" style="accent-color:var(--color-accent-500);cursor:pointer;" />
+              </th>
               <th>Agent</th>
               <th>IP 地址</th>
               <th>状态</th>
+              <th>健康分</th>
               <th>CPU</th>
               <th>内存</th>
               <th>磁盘</th>
@@ -69,6 +79,9 @@
           </thead>
           <tbody>
             <tr v-for="agent in agentsStore.agents" :key="agent.id" @click="showAgentDetail(agent)" style="cursor:pointer;">
+              <td @click.stop style="padding-left:8px;">
+                <input type="checkbox" :checked="selectedAgents.includes(agent.agent_id)" @change="toggleSelect(agent.agent_id)" style="accent-color:var(--color-accent-500);cursor:pointer;" />
+              </td>
               <td>
                 <span class="agent-name-row">
                   <span :class="['status-pulse', agent.status]"></span>
@@ -76,7 +89,22 @@
                 </span>
               </td>
               <td class="mono-cell">{{ agent.ip_address }}</td>
-              <td><span :class="['status-tag', agentStatusTag(agent.status)]"><span class="dot"></span>{{ statusLabel(agent.status) }}</span></td>
+              <td>
+                <div class="status-cell">
+                  <span :class="['status-badge', agentStatusBadgeClass(agent.status)]">{{ statusLabel(agent.status) }}</span>
+                  <span v-if="agent.status === 'offline' && agent.last_heartbeat" class="offline-delta">{{ formatOfflineTime(agent.last_heartbeat) }}</span>
+                </div>
+              </td>
+              <td>
+                <span v-if="agent.health_score != null" :class="['health-badge', healthBadgeClass(agent.health_score)]">
+                  <svg viewBox="0 0 16 16" style="width:10px;height:10px;vertical-align:middle;margin-right:3px;">
+                    <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M8 3.5l1.2 2.4 2.6.4-1.9 1.8.4 2.6L8 9.4 5.7 10.7l.4-2.6L4.2 6.3l2.6-.4L8 3.5z" fill="currentColor"/>
+                  </svg>
+                  {{ agent.health_score }}
+                </span>
+                <span v-else class="text-muted" style="font-size:var(--text-mono-sm);">--</span>
+              </td>
               <td>
                 <div class="progress-mini">
                   <div class="progress-bar" :class="cpuBarClass(agent.cpu_usage)" :style="{ width: agent.cpu_usage + '%' }"></div>
@@ -123,17 +151,48 @@
             </button>
           </div>
           <div class="drawer-body">
+
+            <!-- Health Score Ring -->
+            <div v-if="detailAgent.health_score != null" class="health-ring-section">
+              <div class="health-ring-wrap">
+                <svg class="health-ring" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="var(--color-bg-elevated)" stroke-width="10"/>
+                  <circle
+                    cx="60" cy="60" r="50" fill="none"
+                    :stroke="healthRingColor(detailAgent.health_score!)"
+                    stroke-width="10" stroke-linecap="round"
+                    :stroke-dasharray="circumference"
+                    :stroke-dashoffset="dashOffset(detailAgent.health_score!)"
+                    :transform="dashRotate(detailAgent.health_score!)"
+                    style="transition:stroke-dashoffset 0.8s ease;"
+                  />
+                  <text x="60" y="56" text-anchor="middle" font-size="28" font-weight="bold" :fill="healthRingColor(detailAgent.health_score!)" font-family="monospace">{{ detailAgent.health_score }}</text>
+                  <text x="60" y="76" text-anchor="middle" font-size="10" fill="var(--color-text-tertiary)">健康评分</text>
+                </svg>
+              </div>
+              <div class="health-factors">
+                <div v-for="f in healthFactorRows" :key="f.key" class="health-factor-row">
+                  <span class="health-factor-label">{{ f.label }}</span>
+                  <div class="health-factor-bar">
+                    <div class="health-factor-fill" :class="healthFactorClass(f.value)" :style="{ width: f.value + '%' }"></div>
+                  </div>
+                  <span class="health-factor-value mono">{{ f.value }}</span>
+                </div>
+              </div>
+            </div>
+
             <div class="detail-section">
               <h3>基本信息</h3>
               <div class="detail-row"><span class="detail-label">Agent ID</span><span class="detail-value mono">{{ detailAgent.agent_id }}</span></div>
               <div class="detail-row"><span class="detail-label">IP 地址</span><span class="detail-value mono">{{ detailAgent.ip_address }}</span></div>
-              <div class="detail-row"><span class="detail-label">状态</span><span :class="['status-tag', agentStatusTag(detailAgent.status)]"><span class="dot"></span>{{ statusLabel(detailAgent.status) }}</span></div>
+              <div class="detail-row"><span class="detail-label">状态</span><span :class="['status-badge', agentStatusBadgeClass(detailAgent.status)]">{{ statusLabel(detailAgent.status) }}</span></div>
               <div class="detail-row"><span class="detail-label">操作系统</span><span class="detail-value">{{ detailAgent.os_version }}</span></div>
               <div class="detail-row"><span class="detail-label">Agent 版本</span><span class="detail-value mono">{{ detailAgent.agent_version }}</span></div>
               <div class="detail-row"><span class="detail-label">CPU 核心</span><span class="detail-value">{{ detailAgent.cpu_cores }} 核</span></div>
               <div class="detail-row"><span class="detail-label">总内存</span><span class="detail-value">{{ formatMemory(detailAgent.memory_total) }}</span></div>
               <div class="detail-row"><span class="detail-label">进程数</span><span class="detail-value">{{ detailAgent.processes_total }}</span></div>
               <div class="detail-row"><span class="detail-label">最后心跳</span><span class="detail-value mono">{{ formatTime(detailAgent.last_heartbeat) }}</span></div>
+              <div v-if="detailAgent.last_status_change" class="detail-row"><span class="detail-label">状态变更</span><span class="detail-value mono">{{ formatTime(detailAgent.last_status_change) }}</span></div>
             </div>
 
             <div class="detail-section">
@@ -173,6 +232,7 @@
               <button class="btn-primary" @click="restartAgent(detailAgent)">远程重启</button>
               <button class="action-btn" @click="deployPolicyToAgent(detailAgent)">策略下发</button>
               <button class="action-btn" @click="openUpgradeDialogForAgent(detailAgent)">远程升级</button>
+              <button class="action-btn btn-warn" @click="batchRestartSingle(detailAgent)">加入批量重启</button>
             </div>
           </div>
         </div>
@@ -279,6 +339,60 @@ const upgradeVersion = ref('')
 const upgradeScope = ref('selected')
 const grayPercent = ref(30) // 保留合理默认值，生产环境应改为配置项
 
+// ── Multi-select for batch restart ──
+const selectedAgents = ref<string[]>([])
+
+function toggleSelect(agentId: string) {
+  const idx = selectedAgents.value.indexOf(agentId)
+  if (idx === -1) {
+    selectedAgents.value.push(agentId)
+  } else {
+    selectedAgents.value.splice(idx, 1)
+  }
+}
+
+const isAllSelected = computed(() => {
+  const total = agentsStore.agents.length
+  return total > 0 && selectedAgents.value.length === total
+})
+
+function toggleSelectAll() {
+  if (isAllSelected.value) {
+    selectedAgents.value = []
+  } else {
+    selectedAgents.value = agentsStore.agents.map(a => a.agent_id)
+  }
+}
+
+// ── Batch restart ──
+async function batchRestartSelected() {
+  if (selectedAgents.value.length === 0) {
+    showToast('请先选择要重启的 Agent', 'warning')
+    return
+  }
+  const hostnames = agentsStore.agents
+    .filter(a => selectedAgents.value.includes(a.agent_id))
+    .map(a => a.hostname)
+  if (confirm(`确认批量重启以下 ${selectedAgents.value.length} 个 Agent？\n${hostnames.join('\n')}`)) {
+    const taskIds = await agentsStore.batchRestartAgent(selectedAgents.value)
+    if (taskIds.length > 0) {
+      showToast(`批量重启任务已下发，共 ${taskIds.length} 个任务`, 'success')
+      selectedAgents.value = []
+      await agentsStore.fetchAgents()
+    } else {
+      showToast('批量重启任务下发失败', 'error')
+    }
+  }
+}
+
+async function batchRestartSingle(agent: Agent) {
+  if (!selectedAgents.value.includes(agent.agent_id)) {
+    selectedAgents.value.push(agent.agent_id)
+  }
+  showToast(`已将「${agent.hostname}」加入批量重启列表`, 'info')
+  closeDetail()
+}
+
 const availableVersions = computed(() => {
   const versions = new Set(agentsStore.agents.map(a => a.agent_version).filter(Boolean))
   return Array.from(versions).sort().reverse()
@@ -293,6 +407,19 @@ function statusLabel(s: string) {
   return map[s] || s
 }
 
+// Badge-style status classes (filled background + white text)
+function agentStatusBadgeClass(s: string) {
+  const map: Record<string, string> = {
+    online: 'badge-online',
+    offline: 'badge-offline',
+    error: 'badge-error',
+    upgrading: 'badge-upgrading',
+    pending: 'badge-pending',
+  }
+  return map[s] || 'badge-pending'
+}
+
+// Legacy tag classes (for pulse dot in Agent name)
 function agentStatusTag(s: string) {
   const map: Record<string, string> = {
     online: 'status-resolved',
@@ -308,6 +435,56 @@ function cpuBarClass(v: number | undefined) { const n = v ?? 0; return n > 80 ? 
 function memBarClass(v: number | undefined) { const n = v ?? 0; return n > 80 ? 'bar-critical' : n > 60 ? 'bar-warn' : 'bar-ok' }
 function diskBarClass(v: number | undefined) { const n = v ?? 0; return n > 85 ? 'bar-critical' : n > 70 ? 'bar-warn' : 'bar-ok' }
 
+// ── Health badge color (≥80 green, 50-79 yellow, <50 red) ──
+function healthBadgeClass(score: number) {
+  if (score >= 80) return 'health-green'
+  if (score >= 50) return 'health-yellow'
+  return 'health-red'
+}
+
+// ── Health ring ──
+const circumference = 2 * Math.PI * 50 // r=50
+
+function dashOffset(score: number) {
+  return circumference * (1 - score / 100)
+}
+
+function dashRotate(score: number) {
+  // Rotate so the arc starts from top (12 o'clock)
+  const pct = score / 100
+  return `rotate(${(-90 + pct * 360)} 60 60)`
+}
+
+function healthRingColor(score: number) {
+  if (score >= 80) return 'var(--color-low)'
+  if (score >= 50) return 'var(--color-medium)'
+  return 'var(--color-critical)'
+}
+
+function healthFactorClass(value: number) {
+  if (value >= 80) return 'factor-ok'
+  if (value >= 50) return 'factor-warn'
+  return 'factor-critical'
+}
+
+const healthFactorRows = computed(() => {
+  if (!detailAgent.value) return []
+  const agent = detailAgent.value
+  // Approximate factor scores from available metrics
+  const heartbeatFRESH = agent.status === 'online' ? 100 : agent.status === 'offline' ? 20 : 40
+  const cpu = agent.cpu_usage != null ? Math.max(0, 100 - agent.cpu_usage) : 50
+  const memory = agent.memory_usage != null ? Math.max(0, 100 - agent.memory_usage) : 50
+  const disk = agent.disk_usage != null ? Math.max(0, 100 - agent.disk_usage) : 50
+  const status = agent.status === 'online' ? 100 : agent.status === 'error' ? 30 : 50
+  return [
+    { label: '心跳', key: 'heartbeat_freshness', value: heartbeatFRESH },
+    { label: 'CPU', key: 'cpu', value: cpu },
+    { label: '内存', key: 'memory', value: memory },
+    { label: '磁盘', key: 'disk', value: disk },
+    { label: '状态', key: 'status', value: status },
+  ]
+})
+
 function formatMemory(mb?: number) {
   if (!mb) return '-'
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`
@@ -318,8 +495,23 @@ function formatTime(iso?: string) {
   return new Date(iso).toLocaleString('zh-CN')
 }
 
+// Format offline duration: "X分钟前" based on last_heartbeat
+function formatOfflineTime(iso?: string) {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  if (days > 0) return `${days}天前`
+  if (hours > 0) return `${hours}小时前`
+  if (minutes > 0) return `${minutes}分钟前`
+  return '刚刚'
+}
+
 function showAgentDetail(agent: Agent) {
   detailAgent.value = agent
+  // Fetch detailed health score from API
+  agentsStore.fetchHealthScore(agent.agent_id)
 }
 
 function closeDetail() {
@@ -422,7 +614,12 @@ onMounted(() => {
 .page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:var(--space-6); }
 .page-header-left h1 { font-size:var(--text-h1); font-weight:var(--font-weight-bold); color:var(--color-text-primary); margin-bottom:var(--space-1); }
 .page-header-left p { font-size:var(--text-body); color:var(--color-text-tertiary); }
-.page-header-right { flex-shrink:0; }
+.page-header-right { flex-shrink:0; display:flex; gap:var(--space-3); }
+
+.btn-danger {
+  display:inline-flex;align-items:center;gap:4px;padding:8px 16px;border:1px solid var(--color-critical);border-radius:8px;background:transparent;color:var(--color-critical);font-size:var(--text-body-sm);font-weight:var(--font-weight-medium);cursor:pointer;font-family:inherit;transition:all 0.2s;
+}
+.btn-danger:hover { background:var(--color-critical); color:#fff; }
 
 .agent-stats-grid {
   display: grid;
@@ -532,6 +729,123 @@ onMounted(() => {
 
 .alert-name { color: var(--color-text-primary); font-weight: var(--font-weight-medium); }
 
+/* ── Status Badge (filled background + white text) ── */
+.status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-medium);
+  color: #fff;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+}
+
+.badge-online { background: var(--color-status-online); }
+.badge-offline { background: var(--color-status-offline); }
+.badge-error { background: var(--color-status-error); }
+.badge-upgrading { background: #2979FF; }
+.badge-pending { background: var(--color-status-pending); color: #1a1a1a; }
+
+.offline-delta {
+  font-size: var(--text-mono-sm);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+}
+
+/* ── Health Badge ── */
+.health-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: var(--text-mono-sm);
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  color: #fff;
+}
+
+.health-green { background: var(--color-low); }
+.health-yellow { background: var(--color-medium); }
+.health-red { background: var(--color-critical); }
+
+/* ── Health Ring Section ── */
+.health-ring-section {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: var(--space-4);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  margin-bottom: var(--space-5);
+}
+
+.health-ring-wrap {
+  flex-shrink: 0;
+}
+
+.health-ring {
+  width: 120px;
+  height: 120px;
+  transform: rotate(-90deg);
+}
+
+.health-factors {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.health-factor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.health-factor-label {
+  width: 36px;
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.health-factor-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--color-bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.health-factor-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.factor-ok { background: var(--color-low); }
+.factor-warn { background: var(--color-medium); }
+.factor-critical { background: var(--color-critical); }
+
+.health-factor-value {
+  font-size: var(--text-mono-sm);
+  color: var(--color-text-tertiary);
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 .progress-mini {
   width: 80px;
   height: 4px;
@@ -573,6 +887,15 @@ onMounted(() => {
 
 .action-group { display: flex; gap: 4px; }
 
+.btn-warn {
+  border-color: var(--color-medium);
+  color: var(--color-medium);
+}
+.btn-warn:hover {
+  background: var(--color-medium);
+  color: #fff;
+}
+
 /* Drawer */
 .drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:var(--z-modal); display:flex; justify-content:flex-end; }
 .drawer { width:460px; max-width:100vw; height:100%; background:var(--color-bg-surface); border-left:1px solid var(--color-border-default); display:flex; flex-direction:column; animation:slideInRight 0.25s ease; }
@@ -589,7 +912,7 @@ onMounted(() => {
 .detail-row:last-child { border-bottom:none; }
 .detail-label { color:var(--color-text-tertiary); font-size:var(--text-body-sm); }
 .detail-value { color:var(--color-text-primary); font-size:var(--text-body-sm); font-weight:var(--font-weight-medium); }
-.detail-actions { display:flex; gap:var(--space-3); padding-top:var(--space-4); border-top:1px solid var(--color-border-default); }
+.detail-actions { display:flex; gap:var(--space-3); padding-top:var(--space-4); border-top:1px solid var(--color-border-default); flex-wrap:wrap; }
 .text-muted { color:var(--color-text-tertiary); }
 
 /* Modal */

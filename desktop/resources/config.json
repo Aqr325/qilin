@@ -32,5 +32,6 @@
     "backend_ready_timeout_seconds": 60,
     "health_check_interval_seconds": 5,
     "data_directory": "./data"
-  }
+  },
+  "seed_password": "KylinSecOps@2026"
 }

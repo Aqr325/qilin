@@ -87,6 +87,13 @@ class Agent(Base, TimestampMixin, SoftDeleteMixin):
     config_version: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", comment="当前配置版本号"
     )
+    health_score: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=80, server_default="80",
+        comment="健康评分(0-100)"
+    )
+    last_status_change: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="最后状态变化时间"
+    )
 
     def __repr__(self):
         return f"<Agent {self.agent_id}>"

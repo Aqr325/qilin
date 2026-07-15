@@ -58,6 +58,13 @@ class AgentUpgradeRequest(BaseModel):
     package_url: str
 
 
+class AgentBatchRestartRequest(BaseModel):
+    """批量重启Agent请求."""
+
+    agent_ids: List[str] = Field(..., min_length=1, max_length=100)
+    operator: str = Field(..., description="操作人")
+
+
 # ── Response ──
 
 class HeartbeatResponse(BaseModel):
@@ -86,6 +93,7 @@ class AgentSummary(BaseModel):
     last_heartbeat: Optional[datetime] = None
     tags: Optional[List[str]] = None
     registered_at: Optional[datetime] = None
+    health_score: Optional[int] = None
 
 
 class AgentDetail(BaseModel):
@@ -111,6 +119,8 @@ class AgentDetail(BaseModel):
     is_deleted: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    health_score: Optional[int] = None
+    last_status_change: Optional[datetime] = None
 
 
 class AgentMetrics(BaseModel):
@@ -171,6 +181,7 @@ class HealthOverview(BaseModel):
     online_rate: float = 0.0
     avg_cpu_usage: Optional[float] = None
     avg_memory_usage: Optional[float] = None
+    avg_health_score: Optional[float] = None
     versions: List[Dict[str, Any]] = Field(default_factory=list)
 
 
@@ -195,3 +206,21 @@ class OnlineMapItem(BaseModel):
     status: str
     last_heartbeat: Optional[datetime] = None
     os_version: Optional[str] = None
+
+
+# ── Health Score ──
+
+class AgentHealthScoreFactor(BaseModel):
+    """健康评分维度明细."""
+
+    score: int = Field(..., description="维度得分 (0-100)")
+    weight: float = Field(..., description="权重")
+    value: Any = Field(None, description="原始值")
+
+
+class AgentHealthScore(BaseModel):
+    """Agent 健康评分详情."""
+
+    health_score: int = Field(..., description="综合健康评分 (0-100)")
+    factors: Dict[str, AgentHealthScoreFactor] = Field(..., description="各维度评分明细")
+    last_updated: datetime = Field(..., description="最近更新时间")

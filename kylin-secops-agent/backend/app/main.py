@@ -1,7 +1,10 @@
 """Kylin SecOps Agent - Backend Main Application Entry."""
 
+import asyncio
+import logging
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, HTTPException, status, Request
@@ -15,6 +18,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 _START_TIME = time.time()
 _REQUEST_COUNT = 0
 
+logger = logging.getLogger(__name__)
+
 
 class _MetricsMiddleware(BaseHTTPMiddleware):
     """Count every HTTP request that reaches the app (excluding /metrics itself)."""
@@ -27,9 +32,66 @@ class _MetricsMiddleware(BaseHTTPMiddleware):
 
 from app.api.v1 import api_router
 from app.core.config import settings
-from app.core.database import engine
+from app.core.database import engine, async_session_factory
 from app.middleware.request_id import RequestIDMiddleware
 from app.middleware.rate_limit import rate_limit_middleware
+from app.models.agent import Agent
+from app.services.websocket_service import ws_manager
+
+
+# ── Background: Offline Timeout Detection ──
+
+_OFFLINE_TASK: asyncio.Task | None = None
+
+
+async def _offline_timeout_detector() -> None:
+    """后台任务：每 60 秒检查一次超时未心跳的 Agent，标记为 offline 并广播。"""
+    from sqlalchemy import select
+    logger.info("Offline timeout detector started (interval=60s)")
+    while True:
+        try:
+            await asyncio.sleep(60)
+            async with async_session_factory() as db:
+                now = datetime.now(timezone.utc)
+                cutoff = now - timedelta(seconds=30)
+                result = await db.execute(
+                    select(Agent)
+                    .where(
+                        Agent.status == "online",
+                        Agent.last_heartbeat.isnot(None),
+                        Agent.last_heartbeat < cutoff,
+                        Agent.is_deleted == False,
+                    )
+                )
+                stale_agents = result.scalars().all()
+                if stale_agents:
+                    for agent in stale_agents:
+                        agent.status = "offline"
+                        agent.last_status_change = now
+                    await db.commit()
+                    logger.info(
+                        "Marked %d agent(s) as offline (timeout > 30s): %s",
+                        len(stale_agents),
+                        [a.agent_id for a in stale_agents],
+                    )
+                    # 广播每个 Agent 的状态变更
+                    for agent in stale_agents:
+                        try:
+                            await ws_manager.broadcast("agent.status", {
+                                "agent_id": agent.agent_id,
+                                "old_status": "online",
+                                "new_status": "offline",
+                                "timestamp": now.isoformat(),
+                            })
+                        except Exception:
+                            logger.warning(
+                                "Failed to broadcast offline status for %s", agent.agent_id, exc_info=True
+                            )
+        except asyncio.CancelledError:
+            logger.info("Offline timeout detector cancelled")
+            break
+        except Exception:
+            logger.exception("Offline timeout detector error")
 
 
 @asynccontextmanager
@@ -38,13 +100,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Startup
     from app.core.database import init_db
     from app.services.websocket_service import ws_manager
-    
+
     # Initialize database (create tables if not exists)
     await init_db()
-    
+
     await ws_manager.start_redis_listener()
+
+    # 启动离线超时检测后台任务
+    global _OFFLINE_TASK
+    _OFFLINE_TASK = asyncio.create_task(_offline_timeout_detector(), name="offline_timeout_detector")
+    logger.info("Background task 'offline_timeout_detector' started")
+
     yield
-    # Shutdown
+
+    # Shutdown: 优雅停止后台任务
+    if _OFFLINE_TASK is not None:
+        _OFFLINE_TASK.cancel()
+        try:
+            await _OFFLINE_TASK
+        except asyncio.CancelledError:
+            pass
+        logger.info("Background task 'offline_timeout_detector' stopped")
+
     await ws_manager.stop_redis_listener()
     await engine.dispose()
 
