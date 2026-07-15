@@ -15,7 +15,7 @@
  */
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell } = require('electron')
 const path = require('path')
-const { spawn } = require('child_process')
+const { spawn, spawnSync } = require('child_process')
 const fs = require('fs')
 const http = require('http')
 
@@ -248,18 +248,24 @@ function startBackend() {
 }
 
 function stopBackend() {
-  if (backendProcess) {
-    isStoppingBackend = true
-    console.log('[Desktop] Stopping backend...')
-    try {
+  const proc = backendProcess
+  if (!proc) return
+  isStoppingBackend = true
+  console.log('[Desktop] Stopping backend...')
+  try {
+    const pid = proc.pid
+    if (pid) {
       if (process.platform === 'win32') {
-        spawn('taskkill', ['/pid', backendProcess.pid.toString(), '/f', '/t'])
+        // 同步终止（spawnSync 会等待 taskkill 完成再返回），避免 Electron 抢先退出
+        // 导致 backend.exe 子进程被孤儿化、文件锁不释放（下次覆盖升级会失败）。
+        spawnSync('taskkill', ['/pid', String(pid), '/f', '/t'], { windowsHide: true })
       } else {
-        backendProcess.kill('SIGTERM')
+        try { proc.kill('SIGTERM') } catch (e) { /* ignore */ }
       }
-    } catch (err) {
-      console.error('[Desktop] Error stopping backend:', err.message)
     }
+  } catch (err) {
+    console.error('[Desktop] Error stopping backend:', err.message)
+  } finally {
     backendProcess = null
   }
 }
@@ -411,9 +417,17 @@ app.on('window-all-closed', () => {
   // Keep running in tray
 })
 
-app.on('before-quit', () => {
-  isQuitting = true
-  stopBackend()
+app.on('before-quit', (event) => {
+  if (!isQuitting) {
+    isQuitting = true
+    // 阻止 Electron 立即退出：先同步杀掉后端子进程树，待 OS 释放 backend.exe 文件锁后，
+    // 再真正退出，确保进程无残留、下次覆盖升级不会被锁。
+    event.preventDefault()
+    stopBackend()
+    setTimeout(() => {
+      app.quit()
+    }, 300)
+  }
 })
 
 app.on('activate', () => {
