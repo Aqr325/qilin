@@ -45,7 +45,7 @@ async def list_policies(
     status: str = Query(None),
     policy_type: str = Query(None),
     keyword: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """策略列表."""
@@ -59,7 +59,7 @@ async def list_policies(
 @router.get("/{policy_id}", response_model=ApiResponse[PolicyDetail])
 async def get_policy(
     policy_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """策略详情."""
@@ -133,7 +133,7 @@ async def rollback_policy(
 @router.get("/{policy_id}/versions", response_model=ApiResponse[list[PolicyVersion]])
 async def get_policy_versions(
     policy_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """策略版本历史."""
@@ -144,7 +144,7 @@ async def get_policy_versions(
 @router.get("/{policy_id}/deploy-status", response_model=ApiResponse[DeployStatusMap])
 async def get_deploy_status(
     policy_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """策略下发状态追踪."""
@@ -155,7 +155,7 @@ async def get_deploy_status(
 @router.post("/validate", response_model=ApiResponse[PolicyValidationResult])
 async def validate_policy(
     req: PolicyValidateRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_READ)),
 ):
     """策略规则语法校验."""
     result = await policy_service.validate_policy(req.rules)
@@ -165,7 +165,7 @@ async def validate_policy(
 @router.post("/preview-targets", response_model=ApiResponse[PolicyPreviewTargets])
 async def preview_targets(
     req: PolicyPreviewTargetsRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.POLICY_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """预览策略目标Agent范围."""

@@ -49,6 +49,8 @@ def upgrade() -> None:
         ("ai:write", "AI对话操作", "ai", "write"),
         # Dashboard
         ("dashboard:read", "查看仪表盘", "dashboard", "read"),
+        # Local Status
+        ("local_status:read", "查看本机状态", "local_status", "read"),
     ]
 
     perm_ids = []
@@ -105,9 +107,10 @@ def upgrade() -> None:
     operator_perms = [
         "agent:read", "agent:write", "agent:upgrade", "agent:restart",
         "alert:read", "alert:write", "alert:assign", "alert:suppress",
-        "policy:read", "policy:write",
+        "policy:read", "policy:write", "policy:delete", "policy:deploy",
         "dashboard:read",
         "ai:read", "ai:write",
+        "local_status:read",
     ]
     auditor_perms = [
         "alert:read", "alert:export",
@@ -117,6 +120,7 @@ def upgrade() -> None:
         "dashboard:read",
         "ai:read",
         "system:read",
+        "local_status:read",
     ]
     readonly_perms = [
         "agent:read",
@@ -125,6 +129,7 @@ def upgrade() -> None:
         "dashboard:read",
         "audit:read",
         "ai:read",
+        "local_status:read",
     ]
 
     role_perm_map = {

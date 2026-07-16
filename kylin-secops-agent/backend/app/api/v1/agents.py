@@ -156,7 +156,7 @@ async def list_agents(
     version: str = Query(None, alias="agent_version"),
     keyword: str = Query(None),
     os_version: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent列表（分页+筛选）."""
@@ -170,7 +170,7 @@ async def list_agents(
 
 @mgmt_router.get("/stats", response_model=ApiResponse[AgentGlobalStats])
 async def agent_stats(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent全局统计."""
@@ -180,7 +180,7 @@ async def agent_stats(
 
 @mgmt_router.get("/health-check", response_model=ApiResponse[HealthOverview])
 async def health_check(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent健康检查总览."""
@@ -190,7 +190,7 @@ async def health_check(
 
 @mgmt_router.get("/online-map", response_model=ApiResponse[list[OnlineMapItem]])
 async def online_map(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent在线分布地图."""
@@ -201,7 +201,7 @@ async def online_map(
 @mgmt_router.get("/{agent_id}", response_model=ApiResponse[AgentDetail])
 async def get_agent(
     agent_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent详情."""
@@ -213,7 +213,7 @@ async def get_agent(
 async def get_agent_metrics(
     agent_id: str,
     time_range: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent实时指标."""
@@ -227,7 +227,7 @@ async def get_agent_heartbeats(
     page: dict = Depends(get_pagination),
     start_time: str = Query(None),
     end_time: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent心跳历史."""
@@ -252,7 +252,7 @@ async def upgrade_agents(
 @mgmt_router.get("/{agent_id}/upgrade-history", response_model=ApiResponse[list[UpgradeRecord]])
 async def get_upgrade_history(
     agent_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent升级历史."""
@@ -263,7 +263,7 @@ async def get_upgrade_history(
 @mgmt_router.get("/{agent_id}/health-score", response_model=ApiResponse[AgentHealthScore])
 async def get_agent_health_score(
     agent_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent健康评分详情（实时计算）。"""
@@ -300,7 +300,7 @@ async def get_agent_tasks(
     agent_id: str,
     status: str = Query(None),
     task_type: str = Query(None, alias="type"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AGENT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """Agent任务列表."""

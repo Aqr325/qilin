@@ -73,7 +73,7 @@ async def ai_playbook(
 @router.get("/conversations", response_model=ApiResponse[Page[ConversationSummary]])
 async def list_conversations(
     page: dict = Depends(get_pagination),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """AI对话历史."""
@@ -87,7 +87,7 @@ async def list_conversations(
 @router.get("/conversations/{conv_id}", response_model=ApiResponse[ConversationDetail])
 async def get_conversation(
     conv_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """对话详情."""
@@ -121,7 +121,7 @@ async def ai_feedback(
 
 @router.get("/model-configs", response_model=ApiResponse[list[AiModelConfig]])
 async def list_model_configs(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """获取当前用户的模型配置列表."""
@@ -154,7 +154,7 @@ async def test_model_config_endpoint(
 @router.get("/model-configs/{config_id}", response_model=ApiResponse[AiModelConfig])
 async def get_model_config(
     config_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.AI_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """获取单个模型配置."""

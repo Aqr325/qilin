@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.permissions import Permission, require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +189,7 @@ def _get_memory() -> dict:
 
 @router.get("/local-status")
 async def get_local_status(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.LOCAL_STATUS_READ)),
 ):
     """管理本机（运行此后台的机器）的系统状态。"""
     mem = _get_memory()

@@ -41,7 +41,7 @@ async def list_alerts(
     assignee_id: str = Query(None),
     sort_by: str = Query("created_at"),
     sort_order: str = Query("desc"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """告警列表（分页+筛选）."""
@@ -58,7 +58,7 @@ async def list_alerts(
 @router.get("/stats", response_model=ApiResponse[AlertStats])
 async def alert_stats(
     time_range: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """告警统计概览."""
@@ -68,7 +68,7 @@ async def alert_stats(
 
 @router.get("/mitre-matrix", response_model=ApiResponse[list[MitreMatrixItem]])
 async def mitre_matrix(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """获取MITRE ATT&CK矩阵."""
@@ -81,7 +81,7 @@ async def alert_timeline(
     start_time: str = Query(None),
     end_time: str = Query(None),
     interval: str = Query("1h"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """告警时间线视图."""
@@ -96,7 +96,7 @@ async def export_alerts(
     end_time: str = Query(None),
     severity: str = Query(None),
     status: str = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_EXPORT)),
     db: AsyncSession = Depends(get_db),
 ):
     """导出告警数据."""
@@ -109,7 +109,7 @@ async def export_alerts(
 @router.get("/{alert_id}", response_model=ApiResponse[AlertDetail])
 async def get_alert(
     alert_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """告警详情."""
@@ -162,7 +162,7 @@ async def assign_alert(
 @router.get("/{alert_id}/history", response_model=ApiResponse[list[AlertStatusChange]])
 async def get_alert_history(
     alert_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """告警状态流转历史."""
@@ -173,7 +173,7 @@ async def get_alert_history(
 @router.get("/{alert_id}/related", response_model=ApiResponse[list[AlertSummary]])
 async def get_related_alerts(
     alert_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission(Permission.ALERT_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     """关联告警查询."""

@@ -56,6 +56,9 @@ class Permission(str, Enum):
     # Dashboard
     DASHBOARD_READ = "dashboard:read"
 
+    # Local Status (server-side system monitoring)
+    LOCAL_STATUS_READ = "local_status:read"
+
 
 # ── Role Definitions ──
 # Passwords are None by default — resolved at seed time via _resolve_seed_password().
@@ -161,9 +164,12 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         Permission.ALERT_SUPPRESS.value,
         Permission.POLICY_READ.value,
         Permission.POLICY_WRITE.value,
+        Permission.POLICY_DELETE.value,
+        Permission.POLICY_DEPLOY.value,
         Permission.DASHBOARD_READ.value,
         Permission.AI_READ.value,
         Permission.AI_WRITE.value,
+        Permission.LOCAL_STATUS_READ.value,
     ],
     "auditor": [
         Permission.ALERT_READ.value,
@@ -174,6 +180,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         Permission.DASHBOARD_READ.value,
         Permission.AI_READ.value,
         Permission.SYSTEM_READ.value,
+        Permission.LOCAL_STATUS_READ.value,
     ],
     "readonly": [
         Permission.AGENT_READ.value,
@@ -182,6 +189,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         Permission.DASHBOARD_READ.value,
         Permission.AUDIT_READ.value,
         Permission.AI_READ.value,
+        Permission.LOCAL_STATUS_READ.value,
     ],
 }
 
