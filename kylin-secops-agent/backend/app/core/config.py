@@ -83,6 +83,7 @@ class Settings(BaseSettings):
     AGENT_HEARTBEAT_INTERVAL: int = 10  # seconds
     AGENT_OFFLINE_THRESHOLD: int = 30
     AGENT_TOKEN_EXPIRE_HOURS: int = 720  # 30 days
+    HEALTH_SCORE_BROADCAST_THRESHOLD: int = 10  # 健康评分变化超过此值才广播
 
     # ── WebSocket ──
     WS_MAX_CONNECTIONS: int = 5000

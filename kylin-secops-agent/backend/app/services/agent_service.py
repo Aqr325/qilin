@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 from app.models.agent import Agent, AgentHeartbeat, AgentTask as AgentTaskModel
 from app.models.audit import AuditLog
+from app.models.alert import Alert
 from app.repositories.agent_repo import AgentRepository, AgentHeartbeatRepository
 from app.schemas.agent import (
     AgentDetail,
@@ -31,7 +32,22 @@ from app.schemas.agent import (
     UpgradeRecord,
 )
 from app.schemas.common import Page
+from app.schemas.agent import (
+    AgentDetail,
+    AgentGlobalStats,
+    AgentMetrics,
+    AgentRegisterRequest,
+    AgentSummary,
+    AgentTask,
+    HealthOverview,
+    HeartbeatRecord,
+    HeartbeatRequest,
+    HeartbeatResponse,
+    OnlineMapItem,
+    UpgradeRecord,
+)
 from app.services.websocket_service import ws_manager
+from app.core.config import settings
 
 _auto_register_counts = defaultdict(list)
 
@@ -49,20 +65,20 @@ def _check_auto_register_limit() -> bool:
 
 # ── Health Score ──
 
-def _score_heartbeat_freshness(agent: Agent) -> int:
-    """心跳新鲜度评分（0-100）。"""
+def _score_heartbeat_freshness(agent: Agent) -> tuple[int, Optional[float]]:
+    """心跳新鲜度评分（0-100），同时返回新鲜度秒数。"""
     if not agent.last_heartbeat:
-        return 0
+        return 0, None
     age_seconds = (datetime.now(timezone.utc) - agent.last_heartbeat).total_seconds()
     if age_seconds < 30:
-        return 100
+        return 100, round(age_seconds, 1)
     if age_seconds < 60:
-        return 70
+        return 70, round(age_seconds, 1)
     if age_seconds < 120:
-        return 40
+        return 40, round(age_seconds, 1)
     if age_seconds < 300:
-        return 10
-    return 0
+        return 10, round(age_seconds, 1)
+    return 0, round(age_seconds, 1)
 
 
 def _score_cpu(cpu_usage: Optional[float]) -> int:
@@ -138,11 +154,7 @@ def compute_health_score(agent: Agent, heartbeat: Optional[AgentHeartbeat] = Non
             "last_updated": datetime,
         }
     """
-    hb_freshness_score = _score_heartbeat_freshness(agent)
-    hb_freshness_value = (
-        round((datetime.now(timezone.utc) - agent.last_heartbeat).total_seconds(), 1)
-        if agent.last_heartbeat else None
-    )
+    hb_freshness_score, hb_freshness_value = _score_heartbeat_freshness(agent)
 
     cpu_val = heartbeat.cpu_usage if heartbeat else None
     mem_val = heartbeat.memory_percent if heartbeat else None
@@ -263,8 +275,8 @@ async def process_heartbeat(
     await db.commit()
     await db.refresh(agent)
 
-    # 健康评分变化超过 10 分时广播
-    if old_score != agent.health_score and abs(agent.health_score - old_score) >= 10:
+    # 健康评分变化超过阈值时广播
+    if old_score != agent.health_score and abs(agent.health_score - old_score) >= settings.HEALTH_SCORE_BROADCAST_THRESHOLD:
         await ws_manager.broadcast("agent.health", {
             "agent_id": agent_id,
             "health_score": agent.health_score,
@@ -328,7 +340,7 @@ async def register_agent(
     return {
         "agent_id": agent.agent_id,
         "message": "Agent registered successfully. Save the credential securely.",
-        "credential_hint": credential[:8] + "***（注册成功，请妥善保存凭据）",
+        "credential_hint": credential[:8] + "*** (Save credential securely)",
         "config": {
             "heartbeat_interval": 10,
             "log_level": "info",
@@ -350,8 +362,6 @@ async def process_batch_events(
         try:
             event_type = event.get("type", "")
             if event_type == "alert":
-                from app.models.alert import Alert
-                import uuid
                 alert = Alert(
                     id=uuid.uuid4(),
                     source=event.get("source", ""),
@@ -764,7 +774,7 @@ async def batch_restart_agents(
                 status="success",
             ))
         except Exception as e:
-            errors.append({"agent_id": aid, "error": str(e)})
+            errors.append({"agent_id": aid, "error": f"{type(e).__name__}: {e}"})
 
     await db.flush()
     return {
@@ -779,7 +789,7 @@ async def get_agent_health_score(
     db: AsyncSession,
     agent_id: str,
 ) -> Dict[str, Any]:
-    """获取Agent健康评分详情（实时计算）。"""
+    """获取Agent健康评分详情（实时计算）。agent_id 为数据库主键 UUID（非业务 agent_id）。"""
     agent_repo = AgentRepository(db)
     agent = await agent_repo.get(agent_id)
     if not agent:
