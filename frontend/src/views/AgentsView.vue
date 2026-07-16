@@ -53,14 +53,14 @@
         <div class="mini-stat-value">{{ agentsStore.stats.avgMem }}%</div>
         <div class="mini-stat-label">平均内存</div>
       </div>
-      <div v-if="agentsStore.localStatus.cpu_percent != null" class="mini-stat-card local-status-card">
+      <div v-if="agentsStore.localStatus && agentsStore.localStatus.cpu_percent != null" class="mini-stat-card local-status-card">
         <svg viewBox="0 0 14 14" style="width:10px;height:10px;flex-shrink:0;" fill="none" stroke="var(--color-accent-500)" stroke-width="1.5" stroke-linecap="round">
           <rect x="2" y="3" width="10" height="8" rx="1"/><path d="M2 6h10"/>
         </svg>
         <div class="mini-stat-value">{{ agentsStore.localStatus.cpu_percent }}%</div>
         <div class="mini-stat-label">本机CPU</div>
       </div>
-      <div v-if="agentsStore.localStatus.memory" class="mini-stat-card local-status-card">
+      <div v-if="agentsStore.localStatus && agentsStore.localStatus.memory" class="mini-stat-card local-status-card">
         <svg viewBox="0 0 14 14" style="width:10px;height:10px;flex-shrink:0;" fill="none" stroke="var(--color-medium)" stroke-width="1.5" stroke-linecap="round">
           <rect x="2" y="2" width="10" height="10" rx="1"/><path d="M5 5h4M5 8h4"/>
         </svg>
