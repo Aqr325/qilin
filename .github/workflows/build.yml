@@ -93,10 +93,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: |
-            desktop/package-lock.json
-            electron-app/package-lock.json
 
       - name: 安装 Python 依赖
         run: |
@@ -206,10 +202,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: |
-            desktop/package-lock.json
-            electron-app/package-lock.json
 
       - name: 安装系统依赖 (用于 PyInstaller + Electron)
         run: |
