@@ -1,0 +1,6 @@
+{
+  "backend_url": "http://127.0.0.1:8000",
+  "agent_bootstrap_token": "kylin-agent-bootstrap-2026",
+  "heartbeat_interval": 10,
+  "agent_id_prefix": "kylin-win"
+}

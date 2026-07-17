@@ -44,7 +44,19 @@ function getDeliveryRoot() {
 function getConfigPath()    { return path.join(getDeliveryRoot(), 'config.json') }
 function getIconPath()      { return path.join(getDeliveryRoot(), 'icon.png') }
 function getFrontendDir()   { return DEV_MODE ? path.resolve(__dirname, 'frontend') : path.join(process.resourcesPath, 'frontend') }
-function getBackendExePath() { return path.join(getDeliveryRoot(), 'backend.exe') }
+function getBackendExePath() {
+  // 跨平台: Windows 用 backend.exe，Linux/macOS 用 backend
+  // 编译脚本会把 Linux 版二进制也复制为 backend.exe（Linux 不
+  // 介意 .exe 扩展名），这里优先用平台原生名称，兼容旧包
+  const base = path.join(getDeliveryRoot(), 'backend')
+  const winPath = base + '.exe'
+  if (process.platform === 'win32') return winPath
+  // Linux: 优先用 backend（无后缀），fallback 到 backend.exe
+  try {
+    if (fs.existsSync(base)) return base
+  } catch (_) {}
+  return winPath
+}
 
 // ─── Config ───
 let config = {

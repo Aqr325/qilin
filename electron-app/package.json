@@ -10,6 +10,8 @@
     "start": "electron .",
     "build": "electron-builder build --win",
     "build:dir": "electron-builder build --win --dir",
+    "build:linux": "electron-builder build --linux --x64",
+    "build:linux-arm": "electron-builder build --linux --arm64",
     "release": "electron-builder build --win --publish always",
     "release:gh": "node scripts/publish-release.js"
   },
@@ -57,6 +59,20 @@
       ],
       "icon": "build/icon.png",
       "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Network",
+      "executableName": "kylin-secops-agent",
+      "synopsis": "麒麟OS安全智能运维Agent",
+      "description": "麒麟OS安全智能运维Agent - 桌面管理程序",
+      "artifactName": "麒麟OS安全运维Agent-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

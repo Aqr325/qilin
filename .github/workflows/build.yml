@@ -1,0 +1,396 @@
+# =============================================================================
+# 麒麟OS安全运维 — 双平台 CI/CD 构建流水线
+# =============================================================================
+# 触发条件:
+#   - push 到 main/master 分支
+#   - 创建 tag (自动发布 GitHub Release)
+#   - 手动 workflow_dispatch
+#
+# 构建产物 (上传为 Artifact + Release 附件):
+#   Windows:
+#     - 麒麟OS安全运维_桌面程序/  (完整 exe 包)
+#     - 麒麟OS安全智能运维Agent_桌面版交付/  (Agent exe 包)
+#   Linux (AppImage 可在麒麟 V10 上直接双击运行):
+#     - 麒麟OS安全运维-*.AppImage
+#     - 麒麟OS安全运维Agent-*.AppImage
+# =============================================================================
+
+name: 麒麟OS双平台构建
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      build_agent:
+        description: '构建 Agent 版?'
+        type: boolean
+        default: true
+
+# =============================================================================
+# 全局环境变量
+# =============================================================================
+env:
+  NODE_VERSION: '22'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+
+  # ============================================================================
+  # Job 1: 构建前端 (跨平台通用，只跑一次)
+  # ============================================================================
+  frontend:
+    name: 构建前端
+    runs-on: ubuntu-latest
+    outputs:
+      frontend_hash: ${{ steps.hash.outputs.hash }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装前端依赖
+        run: |
+          cd frontend
+          npm ci
+
+      - name: 构建前端 (Vite)
+        run: |
+          cd frontend
+          npx vite build
+
+      - name: 上传前端产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  # ============================================================================
+  # Job 2: Windows 平台构建
+  # ============================================================================
+  windows:
+    name: Windows 构建
+    needs: frontend
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            desktop/package-lock.json
+            electron-app/package-lock.json
+
+      - name: 安装 Python 依赖
+        run: |
+          pip install pyinstaller
+          pip install -r kylin-secops-agent/backend/requirements.txt
+
+      - name: 下载前端产物
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+      - name: 构建后端 (PyInstaller)
+        run: |
+          cd kylin-secops-agent/backend
+          python -m PyInstaller backend.spec --noconfirm
+          echo "BACKEND_DIST_SIZE=$(python -c 'import os; print(f\"{os.path.getsize(\"dist/backend.exe\")/1024/1024:.0f}MB\")')" >> $env:GITHUB_ENV
+
+      - name: 同步到交付目录
+        shell: pwsh
+        run: |
+          # 创建 resources 目录
+          New-Item -ItemType Directory -Force -Path "desktop/resources/frontend" | Out-Null
+
+          # 同步后端
+          Copy-Item "kylin-secops-agent/backend/dist/backend.exe" "desktop/resources/backend.exe" -Force
+
+          # 同步前端
+          Copy-Item "frontend/dist/*" "desktop/resources/frontend/" -Recurse -Force
+
+          # 同步 config.json
+          if (Test-Path "desktop/resources/config.json") {
+            Write-Output "config.json 已存在"
+          }
+
+      - name: 安装桌面程序依赖
+        run: |
+          cd desktop
+          npm ci
+
+      - name: 构建桌面程序 (Electron — win)
+        run: |
+          cd desktop
+          npx electron-builder --win --x64
+
+      - name: 安装 Agent 程序依赖
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          cd electron-app
+          npm ci
+
+      - name: 构建 Agent 程序 (Electron — win)
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          cd electron-app
+          npx electron-builder build --win --x64
+
+      - name: 收集 Windows 构建产物
+        shell: pwsh
+        run: |
+          # 主程序目录
+          $mainDir = "麒麟OS安全运维_Windows"
+          New-Item -ItemType Directory -Force -Path $mainDir | Out-Null
+          if (Test-Path "desktop/release/win-unpacked") {
+            Copy-Item "desktop/release/win-unpacked/*" "$mainDir/" -Recurse -Force
+          }
+
+          # Agent 目录
+          $agentDir = "麒麟OS安全智能运维Agent_Windows"
+          New-Item -ItemType Directory -Force -Path $agentDir | Out-Null
+          if (Test-Path "electron-app/release/win-unpacked") {
+            Copy-Item "electron-app/release/win-unpacked/*" "$agentDir/" -Recurse -Force
+          }
+
+      - name: 上传 Windows 主程序
+        uses: actions/upload-artifact@v4
+        with:
+          name: 麒麟OS安全运维_Windows
+          path: 麒麟OS安全运维_Windows/
+          compression-level: 0  # 已经是二进制的 exe
+
+      - name: 上传 Windows Agent
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: 麒麟OS安全智能运维Agent_Windows
+          path: 麒麟OS安全智能运维Agent_Windows/
+          compression-level: 0
+
+  # ============================================================================
+  # Job 3: Linux 平台构建 (产物可在麒麟 V10 上直接运行!)
+  # ============================================================================
+  linux:
+    name: Linux 构建 (麒麟兼容)
+    needs: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            desktop/package-lock.json
+            electron-app/package-lock.json
+
+      - name: 安装系统依赖 (用于 PyInstaller + Electron)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-dev \
+            libegl1 \
+            libxkbcommon0 \
+            libdbus-1-3 \
+            libgtk-3-0 \
+            libnss3 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxrandr2 \
+            libgbm1 \
+            libpango-1.0-0 \
+            libcairo2 \
+            libasound2 \
+            libfuse2
+
+      - name: 安装 Python 依赖
+        run: |
+          pip install pyinstaller
+          pip install -r kylin-secops-agent/backend/requirements.txt
+
+      - name: 下载前端产物
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+      - name: 构建后端 (PyInstaller — Linux ELF)
+        run: |
+          cd kylin-secops-agent/backend
+          python -m PyInstaller backend.spec --noconfirm
+          chmod +x dist/backend
+          echo "BACKEND_DIST_SIZE=$(python -c 'import os; print(f\"{os.path.getsize(\"dist/backend\")/1024/1024:.0f}MB\")')" >> $GITHUB_ENV
+
+      - name: 同步到桌面程序交付目录
+        run: |
+          mkdir -p desktop/resources/frontend
+          cp kylin-secops-agent/backend/dist/backend desktop/resources/backend
+          cp kylin-secops-agent/backend/dist/backend desktop/resources/backend.exe
+          cp -r frontend/dist/* desktop/resources/frontend/
+
+      - name: 安装桌面程序依赖
+        run: |
+          cd desktop
+          npm ci
+
+      - name: 构建桌面程序 (Electron — Linux AppImage)
+        run: |
+          cd desktop
+          npx electron-builder --linux --x64
+        env:
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+
+      - name: 收集 Linux 桌面程序产物
+        run: |
+          mkdir -p 麒麟OS安全运维_Linux
+          if [ -d "desktop/release" ]; then
+            cp -r desktop/release/* 麒麟OS安全运维_Linux/ 2>/dev/null || true
+          fi
+          ls -lh 麒麟OS安全运维_Linux/
+
+      - name: 上传 Linux 主程序 (AppImage)
+        uses: actions/upload-artifact@v4
+        with:
+          name: 麒麟OS安全运维_Linux
+          path: 麒麟OS安全运维_Linux/
+          compression-level: 0
+
+      # ---- Agent 版 (可选) ----
+      - name: 同步到 Agent 交付目录
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          mkdir -p 麒麟OS安全智能运维Agent_桌面版交付/resources
+          cp kylin-secops-agent/backend/dist/backend 麒麟OS安全智能运维Agent_桌面版交付/backend
+          cp kylin-secops-agent/backend/dist/backend 麒麟OS安全智能运维Agent_桌面版交付/backend.exe
+          cp -r frontend/dist/* 麒麟OS安全智能运维Agent_桌面版交付/resources/frontend/ 2>/dev/null || true
+
+      - name: 安装 Agent 依赖
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          cd electron-app
+          npm ci
+
+      - name: 构建 Agent (Electron — Linux AppImage)
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          cd electron-app
+          npx electron-builder build --linux --x64
+        env:
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+
+      - name: 收集 Linux Agent 产物
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          mkdir -p 麒麟OS安全智能运维Agent_Linux
+          if [ -d "electron-app/release" ]; then
+            cp -r electron-app/release/* 麒麟OS安全智能运维Agent_Linux/ 2>/dev/null || true
+          fi
+          ls -lh 麒麟OS安全智能运维Agent_Linux/
+
+      - name: 上传 Linux Agent (AppImage)
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: 麒麟OS安全智能运维Agent_Linux
+          path: 麒麟OS安全智能运维Agent_Linux/
+          compression-level: 0
+
+  # ============================================================================
+  # Job 4: 发布 Release (仅 tag 推送时触发)
+  # ============================================================================
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 下载所有平台产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: 结构预览
+        run: find artifacts/ -type f | head -40
+
+      - name: 打包 Release 附件
+        run: |
+          # Windows 主程序打包 zip
+          if [ -d "artifacts/麒麟OS安全运维_Windows" ]; then
+            cd artifacts/麒麟OS安全运维_Windows
+            zip -r ../../麒麟OS安全运维_Windows_x64.zip .
+            cd ../..
+            echo "WIN_MAIN_ZIP=麒麟OS安全运维_Windows_x64.zip" >> $GITHUB_ENV
+          fi
+
+          # Windows Agent 打包 zip
+          if [ -d "artifacts/麒麟OS安全智能运维Agent_Windows" ]; then
+            cd artifacts/麒麟OS安全智能运维Agent_Windows
+            zip -r ../../麒麟OS安全智能运维Agent_Windows_x64.zip .
+            cd ../..
+            echo "WIN_AGENT_ZIP=麒麟OS安全智能运维Agent_Windows_x64.zip" >> $GITHUB_ENV
+          fi
+
+          # Linux 产物
+          if [ -d "artifacts/麒麟OS安全运维_Linux" ]; then
+            echo "LINUX_MAIN_DIR=artifacts/麒麟OS安全运维_Linux" >> $GITHUB_ENV
+          fi
+          if [ -d "artifacts/麒麟OS安全智能运维Agent_Linux" ]; then
+            echo "LINUX_AGENT_DIR=artifacts/麒麟OS安全智能运维Agent_Linux" >> $GITHUB_ENV
+          fi
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 麒麟OS安全运维 ${{ github.ref_name }}
+          body: |
+            ## 麒麟OS安全运维 ${{ github.ref_name }}
+
+            ### 📦 Windows 下载
+            - `麒麟OS安全运维_Windows_x64.zip` — 主程序 (双击 exe 运行)
+            - `麒麟OS安全运维Agent_Windows_x64.zip` — Agent 版
+
+            ### 🐧 Linux / 麒麟 V10 下载
+            - `麒麟OS安全运维-*.AppImage` — 主程序 (双击即运行，无需安装)
+            - `麒麟OS安全运维Agent-*.AppImage` — Agent 版
+
+            ### 💡 麒麟系统使用说明
+            1. 下载 `.AppImage` 文件
+            2. 右键 → 属性 → 勾选"允许作为程序执行" (或 `chmod +x *.AppImage`)
+            3. 双击即可运行 🚀
+          draft: false
+          prerelease: false
+          files: |
+            ${{ env.WIN_MAIN_ZIP }}
+            ${{ env.WIN_AGENT_ZIP }}

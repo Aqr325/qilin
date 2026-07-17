@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=麒麟OS安全运维
+Name[en]=Kylin SecOps
+Comment=麒麟操作系统安全智能运维管理平台
+Comment[en]=Kylin OS Security Intelligent Operations Platform
+Exec=/opt/kylin-secops-desktop/kylin-secops
+Icon=/opt/kylin-secops-desktop/icon.png
+Terminal=false
+Categories=Network;Security;System;
+Keywords=security;monitor;ops;secops;kylin;
+StartupWMClass=kylin-secops
+MimeType=
+X-Kylin-SubCategory=应用
+X-Kylin-DesktopFile-Version=1.0

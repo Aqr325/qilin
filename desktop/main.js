@@ -44,7 +44,14 @@ function getConfigPath() {
 }
 
 function getBackendExePath() {
-  return path.join(getResourcesPath(), 'backend.exe')
+  const base = path.join(getResourcesPath(), 'backend')
+  const winPath = base + '.exe'
+  if (process.platform === 'win32') return winPath
+  // Linux: 优先用无后缀, fallback 到 .exe（编译脚本可能用 .exe 命名）
+  try {
+    if (fs.existsSync(base)) return base
+  } catch (_) {}
+  return winPath
 }
 
 function getFrontendPath() {

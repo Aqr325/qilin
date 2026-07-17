@@ -2,7 +2,11 @@
 
 > Kylin OS Security Intelligent Operations Agent
 
+[![麒麟OS双平台构建](https://github.com/Aqr325/qilin/actions/workflows/build.yml/badge.svg)](https://github.com/Aqr325/qilin/actions/workflows/build.yml)
+
 面向麒麟操作系统的智能安全运维管理平台，集成 Agent 监控、实时告警、安全策略、AI 智能分析和桌面程序于一体。
+
+**双平台支持**：Windows ✕ 🐧 麒麟 V10 (AppImage)
 
 ## 快速开始
 
@@ -246,6 +250,160 @@ async def list_items(current_user: dict = Depends(require_permission(Permission.
 | 主程序 | 8001 | Electron 桌面版，含前端 + 后端 |
 | Agent 交付 | 8000 | 独立后端 + 前端，用于 Agent 管理 |
 | 开发环境 | 8000 | 本地开发后端 |
+
+## 跨平台构建 (Windows + 麒麟 V10)
+
+### 统一构建脚本
+
+```bash
+# 构建当前平台完整包（自动检测 Windows / Linux）
+python build.py
+
+# 分步构建
+python build.py --backend-only      # 仅构建后端 (PyInstaller)
+python build.py --frontend-only     # 仅构建前端 (Vite)
+python build.py --electron-only     # 仅构建 Electron 桌面包
+python build.py --sync-only         # 仅同步产物到交付目录
+python build.py --platform linux    # 指定构建平台 (可选)
+```
+
+### Windows 构建
+
+```bash
+# 前置条件
+#   1. Python 3.11+ (推荐 desktop-build-env 虚拟环境)
+#   2. Node.js 20+
+#   3. UPX (可选，自动检测 C:\ProgramData\chocolatey\bin\upx.exe)
+
+cd qilin
+python build.py
+```
+
+### 麒麟 V10 构建 (桌面版 AppImage)
+
+**推荐使用专用构建脚本**（自动处理所有步骤）：
+
+```bash
+# 一步到位
+sudo bash kylin-secops-agent/deploy/kylin/scripts/build_kylin_desktop.sh
+
+# 或使用通用构建脚本
+python3 build.py
+```
+
+**手动分步构建：**
+
+```bash
+# 1. 安装系统依赖
+sudo dnf install -y python3 python3-devel python3-pip nodejs npm \
+  libXScrnSaver libXcomposite libXdamage libXrandr libgbm \
+  libpango libcairo libasound libxkbcommon libdbus libegl libnss3 fuse
+
+# 2. 构建后端
+cd kylin-secops-agent/backend
+pip install -r requirements.txt pyinstaller
+python3 -m PyInstaller backend.spec --noconfirm
+cd ../..
+
+# 3. 构建前端
+cd frontend && npm install && npx vite build && cd ..
+
+# 4. 同步到交付目录
+cp kylin-secops-agent/backend/dist/backend desktop/resources/backend
+cp -r frontend/dist/* desktop/resources/frontend/
+
+# 5. 构建 Electron AppImage
+cd desktop && npm install && npx electron-builder --linux --x64
+
+# 输出: desktop/release/麒麟OS安全运维-*.AppImage  ← 双击即运行！
+```
+
+### 麒麟 V10 生产部署（非桌面，服务端模式）
+
+```bash
+# 使用一键部署脚本
+cd kylin-secops-agent/deploy/kylin
+sudo bash scripts/deploy_kylin.sh
+
+# 或手动部署
+# 1. 安装系统依赖
+sudo dnf install -y python3 python3-devel python3-pip postgresql-server redis nginx
+
+# 2. 安装 Python 依赖
+pip install -r kylin-secops-agent/backend/requirements.txt
+
+# 3. 通过 Python 直接运行后端（无需 PyInstaller）
+cd kylin-secops-agent/backend
+python backend_entry.py
+
+# 4. 安装 systemd 服务
+sudo cp deploy/kylin/systemd/kylin-secops-api.service /usr/lib/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now kylin-secops-api
+
+# 5. 配置 Nginx 反向代理
+sudo cp deploy/kylin/nginx/kylin-secops.conf /etc/nginx/conf.d/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 麒麟桌面集成
+
+麒麟 V10 桌面版用户可安装快捷方式到开始菜单：
+
+```bash
+# 安装桌面快捷方式
+sudo bash kylin-secops-agent/deploy/kylin/desktop/install-desktop.sh
+
+# 安装到当前用户
+bash kylin-secops-agent/deploy/kylin/desktop/install-desktop.sh --user
+
+# 移除
+bash kylin-secops-agent/deploy/kylin/desktop/install-desktop.sh --remove
+```
+
+### 构建产物
+
+| 平台 | 后端形态 | Electron 输出 | 图标 |
+|------|---------|--------------|------|
+| Windows | `backend.exe` (PE) | `.exe` / NSIS 安装包 | `.ico` |
+| 麒麟 V10 (x86_64) | `backend` (ELF) | `.AppImage` | `.png` |
+| 麒麟 V10 (aarch64) | `backend` (ELF) | `.AppImage` (arm64) | `.png` |
+
+### GitHub Actions 自动构建 (推荐)
+
+本仓库配置了自动构建流水线，**无需在本地搭建麒麟环境**，GitHub 服务器自动为两个平台构建包。
+
+**触发方式**：
+
+| 操作 | 触发构建 | 产出 |
+|------|---------|------|
+| `git push` 到 `main` 分支 | ✅ 自动构建 | 上传 Artifact (工作台可下载) |
+| 推送 tag `v*` (如 `v2.5.0`) | ✅ 自动构建+发布 | 创建 GitHub Release，包含全部附件 |
+| 手动触发 | ✅ 在 Actions 页点 "Run workflow" | 上传 Artifact |
+
+**麒麟 V10 用户获取 AppImage 的步骤**：
+
+```bash
+# 方法 1: 从 Release 下载 (最简单的办法)
+# 访问: https://github.com/Aqr325/qilin/releases/latest
+# 下载: 麒麟OS安全运维-*.AppImage
+
+# 方法 2: 从 Actions Artifact 下载
+# 访问: https://github.com/Aqr325/qilin/actions
+# 选择最新成功的工作流 → Artifacts → 麒麟OS安全运维_Linux
+
+# 在麒麟系统上运行
+chmod +x 麒麟OS安全运维-*.AppImage
+./麒麟OS安全运维-*.AppImage   # 或直接双击
+```
+
+### 架构说明
+
+- **后端**: 跨平台 Python 代码，无需修改。PyInstaller 在各自平台打出对应二进制
+- **前端**: Vue3 静态资源，编译结果完全一致
+- **Electron 壳**: 平台相关，通过 `electron-builder` 分平台打包
+- **数据库**: SQLite 文件，跨平台即拷即用
+- **配置**: config.json 统一管理，`main.js` 根据 `process.platform` 自动适配后端路径
 
 ## 许可证
 
