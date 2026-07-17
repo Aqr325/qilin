@@ -59,7 +59,7 @@ jobs:
       - name: 安装前端依赖
         run: |
           cd frontend
-          npm ci
+          npm install
 
       - name: 构建前端 (Vite)
         run: |
@@ -135,7 +135,7 @@ jobs:
       - name: 安装桌面程序依赖
         run: |
           cd desktop
-          npm ci
+          npm install
 
       - name: 构建桌面程序 (Electron — win)
         run: |
@@ -146,7 +146,7 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         run: |
           cd electron-app
-          npm ci
+          npm install
 
       - name: 构建 Agent 程序 (Electron — win)
         if: ${{ github.event_name != 'pull_request' }}
@@ -258,7 +258,7 @@ jobs:
       - name: 安装桌面程序依赖
         run: |
           cd desktop
-          npm ci
+          npm install
 
       - name: 构建桌面程序 (Electron — Linux AppImage)
         run: |
@@ -295,7 +295,7 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         run: |
           cd electron-app
-          npm ci
+          npm install
 
       - name: 构建 Agent (Electron — Linux AppImage)
         if: ${{ github.event_name != 'pull_request' }}
